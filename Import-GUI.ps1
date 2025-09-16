@@ -217,8 +217,23 @@ function Show-ImportGUI {
     $schemaTextBox = New-Object System.Windows.Forms.TextBox
     $schemaTextBox.Size = New-Object System.Drawing.Size(380, 20)
     $schemaTextBox.Location = New-Object System.Drawing.Point(20, 345)
-    $schemaTextBox.PlaceholderText = "Leave empty to use detected prefix"
+    $schemaTextBox.ForeColor = [System.Drawing.Color]::Gray
+    $schemaTextBox.Text = "Leave empty to use detected prefix"
     $form.Controls.Add($schemaTextBox)
+
+    # Add placeholder behavior for schema textbox
+    $schemaTextBox.Add_GotFocus({
+        if ($schemaTextBox.Text -eq "Leave empty to use detected prefix") {
+            $schemaTextBox.Text = ""
+            $schemaTextBox.ForeColor = [System.Drawing.Color]::Black
+        }
+    })
+    $schemaTextBox.Add_LostFocus({
+        if ([string]::IsNullOrWhiteSpace($schemaTextBox.Text)) {
+            $schemaTextBox.Text = "Leave empty to use detected prefix"
+            $schemaTextBox.ForeColor = [System.Drawing.Color]::Gray
+        }
+    })
 
     # Options section
     $optionsGroupBox = New-Object System.Windows.Forms.GroupBox
@@ -389,8 +404,8 @@ function Show-ImportGUI {
         # Create a background runspace to execute the import
         $global:ImportRunspace = [runspacefactory]::CreateRunspace()
         $global:ImportRunspace.Open()
-        # Determine schema name
-        $schemaName = if ([string]::IsNullOrWhiteSpace($schemaTextBox.Text)) { $null } else { $schemaTextBox.Text.Trim() }
+        # Determine schema name (handle placeholder text)
+        $schemaName = if ([string]::IsNullOrWhiteSpace($schemaTextBox.Text) -or $schemaTextBox.Text -eq "Leave empty to use detected prefix") { $null } else { $schemaTextBox.Text.Trim() }
 
         # Map GUI selections to module parameters
         $tableAction = switch ($tableActionComboBox.SelectedIndex) {
