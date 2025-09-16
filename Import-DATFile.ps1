@@ -474,6 +474,179 @@ function Show-ImportSummary {
     Write-Log "Import summary completed - $($global:ImportSummary.Count) tables, $totalRows total rows" -Level "SUCCESS"
 }
 
+function Import-DataFileBulk {
+    param(
+        [string]$ConnectionString,
+        [string]$SchemaName,
+        [string]$TableName,
+        [string]$FilePath,
+        [array]$Fields,
+        [bool]$SkipFirstField = $false
+    )
+
+    $fileName = [System.IO.Path]::GetFileName($FilePath)
+    Write-Log "Starting bulk data import for table [$SchemaName].[$TableName] from file: $fileName" -Level "INFO"
+    Write-Host "Importing data from $fileName using SqlBulkCopy..." -ForegroundColor Yellow
+
+    # Read the file and parse pipe-separated data
+    Write-LogVerbose "Reading data file: $FilePath"
+    $lines = Get-Content -Path $FilePath
+    Write-LogVerbose "Read $($lines.Count) lines from data file"
+
+    if ($lines.Count -eq 0) {
+        Write-Log "Data file is empty: $FilePath" -Level "WARNING"
+        Write-Warning "File is empty: $FilePath"
+        return 0
+    }
+
+    # Create DataTable structure
+    $dataTable = New-Object System.Data.DataTable
+    Write-LogVerbose "Creating DataTable structure with $($Fields.Count) columns"
+
+    foreach ($field in $Fields) {
+        $column = New-Object System.Data.DataColumn
+        $column.ColumnName = $field.'Field name'
+
+        # Map SQL types to .NET types for DataTable
+        $sqlType = Get-DataTypeMapping -ExcelType $field."Field type" -Precision $field.Precision
+        switch -Regex ($sqlType.ToUpper()) {
+            "^INT" { $column.DataType = [System.Int32] }
+            "^BIGINT" { $column.DataType = [System.Int64] }
+            "^SMALLINT" { $column.DataType = [System.Int16] }
+            "^TINYINT" { $column.DataType = [System.Byte] }
+            "^BIT" { $column.DataType = [System.Boolean] }
+            "^FLOAT" { $column.DataType = [System.Double] }
+            "^REAL" { $column.DataType = [System.Single] }
+            "^DECIMAL|^MONEY|^NUMERIC" { $column.DataType = [System.Decimal] }
+            "^DATE|^DATETIME" { $column.DataType = [System.DateTime] }
+            default { $column.DataType = [System.String] }
+        }
+
+        $dataTable.Columns.Add($column)
+        Write-LogVerbose "Added column: $($field.'Field name') as $($column.DataType)"
+    }
+
+    # Populate DataTable with data
+    $rowCount = 0
+    Write-LogVerbose "Populating DataTable with data"
+
+    foreach ($line in $lines) {
+        if ([string]::IsNullOrWhiteSpace($line)) { continue }
+
+        $values = $line -split '\|'
+        Write-LogVerbose "Processing line with $($values.Length) fields"
+
+        # Skip first field if determined necessary
+        if ($SkipFirstField -and $values.Length -gt 0) {
+            $originalCount = $values.Length
+            $values = $values[1..($values.Length - 1)]
+            Write-LogVerbose "Skipped first field - Original: $originalCount, After skip: $($values.Length)"
+        }
+
+        # Create DataRow and populate with values
+        $dataRow = $dataTable.NewRow()
+
+        for ($i = 0; $i -lt [Math]::Min($values.Length, $Fields.Count); $i++) {
+            $value = $values[$i].Trim()
+            $fieldName = $Fields[$i].'Field name'
+
+            if ([string]::IsNullOrEmpty($value) -or $value -eq "NULL") {
+                $dataRow[$fieldName] = [DBNull]::Value
+            }
+            else {
+                try {
+                    # Convert value to appropriate type
+                    $column = $dataTable.Columns[$fieldName]
+                    if ($column.DataType -eq [System.Boolean]) {
+                        $dataRow[$fieldName] = [System.Convert]::ToBoolean($value)
+                    }
+                    elseif ($column.DataType -eq [System.DateTime]) {
+                        $dataRow[$fieldName] = [System.DateTime]::Parse($value)
+                    }
+                    elseif ($column.DataType -eq [System.Decimal]) {
+                        $dataRow[$fieldName] = [System.Decimal]::Parse($value)
+                    }
+                    elseif ($column.DataType -eq [System.Double]) {
+                        $dataRow[$fieldName] = [System.Double]::Parse($value)
+                    }
+                    elseif ($column.DataType -eq [System.Single]) {
+                        $dataRow[$fieldName] = [System.Single]::Parse($value)
+                    }
+                    elseif ($column.DataType -eq [System.Int64]) {
+                        $dataRow[$fieldName] = [System.Int64]::Parse($value)
+                    }
+                    elseif ($column.DataType -eq [System.Int32]) {
+                        $dataRow[$fieldName] = [System.Int32]::Parse($value)
+                    }
+                    elseif ($column.DataType -eq [System.Int16]) {
+                        $dataRow[$fieldName] = [System.Int16]::Parse($value)
+                    }
+                    elseif ($column.DataType -eq [System.Byte]) {
+                        $dataRow[$fieldName] = [System.Byte]::Parse($value)
+                    }
+                    else {
+                        $dataRow[$fieldName] = $value
+                    }
+                }
+                catch {
+                    # If conversion fails, store as string
+                    Write-LogVerbose "Type conversion failed for $fieldName, using string value: $($_.Exception.Message)"
+                    $dataRow[$fieldName] = $value
+                }
+            }
+        }
+
+        $dataTable.Rows.Add($dataRow)
+        $rowCount++
+
+        if ($rowCount % 10000 -eq 0) {
+            Write-LogVerbose "Processed $rowCount rows into DataTable"
+        }
+    }
+
+    Write-LogVerbose "DataTable populated with $rowCount rows"
+
+    # Perform bulk copy
+    try {
+        $connection = New-Object System.Data.SqlClient.SqlConnection($ConnectionString)
+        $connection.Open()
+        Write-LogVerbose "Database connection opened for bulk copy"
+
+        $bulkCopy = New-Object System.Data.SqlClient.SqlBulkCopy($connection)
+        $bulkCopy.DestinationTableName = "[$SchemaName].[$TableName]"
+        $bulkCopy.BatchSize = 10000
+        $bulkCopy.BulkCopyTimeout = 300  # 5 minutes
+
+        # Map columns
+        foreach ($field in $Fields) {
+            $bulkCopy.ColumnMappings.Add($field.'Field name', $field.'Field name') | Out-Null
+        }
+
+        Write-LogVerbose "Starting SqlBulkCopy operation with batch size: $($bulkCopy.BatchSize)"
+        $bulkCopy.WriteToServer($dataTable)
+
+        $bulkCopy.Close()
+        $connection.Close()
+
+        Write-Host "Successfully imported $rowCount rows into [$SchemaName].[$TableName]" -ForegroundColor Green
+        Write-Log "Bulk data import completed successfully - $rowCount rows imported into [$SchemaName].[$TableName]" -Level "SUCCESS"
+
+        return $rowCount
+    }
+    catch {
+        Write-Log "Bulk copy failed: $($_.Exception.Message)" -Level "ERROR"
+        if ($connection.State -eq 'Open') {
+            $connection.Close()
+        }
+        throw
+    }
+    finally {
+        if ($dataTable) {
+            $dataTable.Dispose()
+        }
+    }
+}
+
 function Import-DataFile {
     param(
         [string]$ConnectionString,
@@ -745,9 +918,41 @@ foreach ($datFile in $datFiles) {
         New-Table -ConnectionString $connectionString -SchemaName $schemaName -TableName $tableName -Fields $tableFields
     }
     
-    # Import data
+    # Import data using efficient bulk copy with fallback
     try {
-        $rowsImported = Import-DataFile -ConnectionString $connectionString -SchemaName $schemaName -TableName $tableName -FilePath $datFile.FullName -Fields $tableFields
+        # Determine if we need to skip first field
+        $needsFieldSkip = $false
+        $testLines = Get-Content -Path $datFile.FullName -TotalCount 1
+        if ($testLines.Count -gt 0) {
+            $firstLineFields = ($testLines[0] -split '\|').Count
+            $specFieldCount = $tableFields.Count
+
+            if ($firstLineFields -eq ($specFieldCount + 1)) {
+                $action = Get-FieldMismatchAction -TableName $tableName -FileFieldCount $firstLineFields -SpecFieldCount $specFieldCount
+                if ($action -eq "Exit") {
+                    Write-Log "Import cancelled by user due to field mismatch" -Level "INFO"
+                    Write-Host "Import cancelled by user." -ForegroundColor Red
+                    exit 0
+                }
+                elseif ($action -eq "Skip") {
+                    $needsFieldSkip = $true
+                    Write-Host "Will skip first field in data file" -ForegroundColor Green
+                    Write-Log "Will skip first field during data import" -Level "INFO"
+                }
+            }
+        }
+
+        # Try bulk copy first (much faster for large datasets)
+        try {
+            Write-LogVerbose "Attempting bulk copy import for better performance"
+            $rowsImported = Import-DataFileBulk -ConnectionString $connectionString -SchemaName $schemaName -TableName $tableName -FilePath $datFile.FullName -Fields $tableFields -SkipFirstField $needsFieldSkip
+            Write-Log "Used efficient SqlBulkCopy for import" -Level "SUCCESS"
+        }
+        catch {
+            Write-Log "Bulk copy failed, falling back to standard import: $($_.Exception.Message)" -Level "WARNING"
+            Write-Host "Bulk copy failed, using standard import method..." -ForegroundColor Yellow
+            $rowsImported = Import-DataFile -ConnectionString $connectionString -SchemaName $schemaName -TableName $tableName -FilePath $datFile.FullName -Fields $tableFields
+        }
 
         # Add to import summary
         $global:ImportSummary += [PSCustomObject]@{
