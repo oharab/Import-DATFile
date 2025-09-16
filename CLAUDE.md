@@ -41,6 +41,12 @@ When run without parameters, the script prompts for:
 .\Import-DATFile.ps1 -DataFolder "C:\path\to\data" -ExcelSpecFile "CustomSpec.xlsx"
 ```
 
+### With Verbose Logging
+```powershell
+.\Import-DATFile.ps1 -Verbose
+.\Import-DATFile.ps1 -DataFolder "C:\path\to\data" -ExcelSpecFile "CustomSpec.xlsx" -Verbose
+```
+
 ### Prerequisites
 ```powershell
 Install-Module -Name SqlServer
@@ -95,6 +101,30 @@ Data files often contain an extra first field (import name) not in specification
 - Checks for field specifications per table
 - Validates field count alignment between data files and specifications
 
+## Logging System
+
+### Standard Logging
+All operations include timestamped logging with different levels:
+- **INFO**: General operation progress
+- **SUCCESS**: Successful completions
+- **WARNING**: Non-critical issues
+- **ERROR**: Critical failures
+
+### Verbose Logging
+Use `-Verbose` parameter for detailed diagnostic information:
+- Field count analysis and validation details
+- SQL query execution details
+- Batch processing statistics
+- File size and processing metrics
+- Configuration and parameter details
+
+### Log Format
+```
+[2024-01-15 14:30:25] [INFO] Starting SQL Server Data Import Script
+[2024-01-15 14:30:26] [VERBOSE] Using provided parameters - DataFolder: C:\data
+[2024-01-15 14:30:27] [SUCCESS] Configuration completed
+```
+
 ## Development Notes
 
 - Batch processing prevents memory issues with large datasets
@@ -102,3 +132,4 @@ Data files often contain an extra first field (import name) not in specification
 - Comprehensive error handling with graceful degradation
 - Interactive prompts for critical decisions
 - Detailed progress reporting during import process
+- Comprehensive logging with verbose mode for troubleshooting
