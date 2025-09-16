@@ -15,7 +15,7 @@ if errorlevel 1 (
 )
 
 REM Launch the GUI
-powershell -ExecutionPolicy Bypass -File "%~dp0Import-DATFile-GUI.ps1"
+powershell -ExecutionPolicy Bypass -File "%~dp0Import-GUI.ps1"
 
 if errorlevel 1 (
     echo.
@@ -26,7 +26,7 @@ if errorlevel 1 (
     echo.
     echo Press any key to try the command-line version...
     pause >nul
-    powershell -ExecutionPolicy Bypass -File "%~dp0Import-DATFile.ps1"
+    powershell -ExecutionPolicy Bypass -File "%~dp0Import-CLI.ps1"
 )
 
 pause

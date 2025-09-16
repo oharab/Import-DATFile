@@ -7,9 +7,10 @@ A powerful PowerShell script that imports pipe-separated `.dat` files into SQL S
 ### 🖱️ Easy GUI Method (Recommended for most users)
 1. **Double-click** `Launch-Import-GUI.bat`
 2. **Use the friendly interface** to select your data folder and Excel file
-3. **Click "Start Import"** and watch the progress!
+3. **Configure database connection** in the GUI
+4. **Click "Start Import"** and watch the progress!
 
-### ⌨️ PowerShell Method (For advanced users)
+### ⌨️ Command Line Method (For advanced users)
 1. **Install Prerequisites**
    ```powershell
    Install-Module -Name SqlServer
@@ -22,7 +23,7 @@ A powerful PowerShell script that imports pipe-separated `.dat` files into SQL S
 
 3. **Run the Import**
    ```powershell
-   .\Import-DATFile.ps1
+   .\Import-CLI.ps1
    ```
 
 The script will guide you through the configuration process!
@@ -54,6 +55,28 @@ Your Excel file should contain these columns:
 - 📊 **Import Summary** - Shows exactly what was imported and row counts
 - 📝 **Comprehensive Logging** - Detailed progress tracking with verbose mode
 - 🔄 **Error Recovery** - Handles table conflicts and data issues gracefully
+- 🧩 **Modular Architecture** - Clean separation between core logic and user interfaces
+
+## 🏗️ Architecture
+
+The project uses a clean modular design:
+
+```
+📁 Project Structure
+├── 🧩 SqlServerDataImport.psm1    # Core PowerShell module with all import logic
+├── 🖥️ Import-GUI.ps1              # Windows Forms graphical interface
+├── ⌨️ Import-CLI.ps1               # Interactive command-line interface
+├── 🚀 Launch-Import-GUI.bat       # One-click launcher for GUI
+├── 📚 README.md                   # User documentation
+├── 🔧 CLAUDE.md                   # Technical documentation
+└── 🚫 .gitignore                  # Git exclusions
+```
+
+**Benefits of Modular Design:**
+- **Reusable Core**: The module can be imported into any PowerShell script
+- **Multiple Interfaces**: GUI and CLI both use the same reliable core logic
+- **Easy Testing**: Core functions can be tested independently
+- **Clean Maintenance**: Changes to import logic only need to be made in one place
 
 ## 🎯 Usage Examples
 
@@ -67,11 +90,11 @@ Your Excel file should contain these columns:
 ![GUI Interface Features](gui-preview.png)
 *User-friendly interface with file browsers, progress tracking, and real-time output*
 
-### ⌨️ PowerShell Command Line
+### ⌨️ Command Line Interface
 
 #### Basic Usage (Interactive)
 ```powershell
-.\Import-DATFile.ps1
+.\Import-CLI.ps1
 ```
 The script will prompt you for:
 - Data folder location (defaults to current directory)
@@ -81,12 +104,12 @@ The script will prompt you for:
 
 #### With Parameters
 ```powershell
-.\Import-DATFile.ps1 -DataFolder "C:\MyData" -ExcelSpecFile "MySpecs.xlsx"
+.\Import-CLI.ps1 -DataFolder "C:\MyData" -ExcelSpecFile "MySpecs.xlsx"
 ```
 
 #### With Verbose Logging
 ```powershell
-.\Import-DATFile.ps1 -Verbose
+.\Import-CLI.ps1 -Verbose
 ```
 
 ## 📋 Data Type Support
@@ -196,7 +219,13 @@ Total Rows Imported: 1,468
 
 **Command Line Method:** Run with verbose logging for detailed diagnostics:
 ```powershell
-.\Import-DATFile.ps1 -Verbose
+.\Import-CLI.ps1 -Verbose
+```
+
+**Module Method:** For custom scripts, import the module directly:
+```powershell
+Import-Module .\SqlServerDataImport.psm1
+Invoke-SqlServerDataImport -DataFolder "C:\Data" -ExcelSpecFile "Spec.xlsx" -ConnectionString "Server=localhost;Database=MyDB;Integrated Security=True;"
 ```
 
 ## 📄 Requirements

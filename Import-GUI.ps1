@@ -1,0 +1,449 @@
+# SQL Server Data Import - Graphical User Interface
+# User-friendly Windows Forms interface using the SqlServerDataImport module
+
+Add-Type -AssemblyName System.Windows.Forms
+Add-Type -AssemblyName System.Drawing
+
+# Import the SqlServerDataImport module
+$moduleDir = Split-Path $MyInvocation.MyCommand.Path
+$modulePath = Join-Path $moduleDir "SqlServerDataImport.psm1"
+
+if (-not (Test-Path $modulePath)) {
+    [System.Windows.Forms.MessageBox]::Show("SqlServerDataImport.psm1 module not found at: $modulePath", "Error", "OK", "Error")
+    exit 1
+}
+
+Import-Module $modulePath -Force
+
+# Check for required PowerShell modules
+try {
+    Import-Module SqlServer -ErrorAction Stop
+}
+catch {
+    [System.Windows.Forms.MessageBox]::Show("SqlServer module not found. Please install it using: Install-Module -Name SqlServer", "Missing Module", "OK", "Error")
+    exit 1
+}
+
+try {
+    Import-Module ImportExcel -ErrorAction Stop
+}
+catch {
+    [System.Windows.Forms.MessageBox]::Show("ImportExcel module not found. Please install it using: Install-Module -Name ImportExcel", "Missing Module", "OK", "Error")
+    exit 1
+}
+
+# Global variables
+$global:ImportRunspace = $null
+$global:ImportPowerShell = $null
+
+function Show-ImportGUI {
+    # Create main form
+    $form = New-Object System.Windows.Forms.Form
+    $form.Text = "SQL Server Data Import Utility"
+    $form.Size = New-Object System.Drawing.Size(600, 600)
+    $form.StartPosition = "CenterScreen"
+    $form.FormBorderStyle = "FixedDialog"
+    $form.MaximizeBox = $false
+    $form.Icon = [System.Drawing.SystemIcons]::Application
+
+    # Title label
+    $titleLabel = New-Object System.Windows.Forms.Label
+    $titleLabel.Text = "SQL Server Data Import Utility"
+    $titleLabel.Font = New-Object System.Drawing.Font("Segoe UI", 14, [System.Drawing.FontStyle]::Bold)
+    $titleLabel.Size = New-Object System.Drawing.Size(580, 30)
+    $titleLabel.Location = New-Object System.Drawing.Point(10, 10)
+    $titleLabel.TextAlign = "MiddleCenter"
+    $form.Controls.Add($titleLabel)
+
+    # Subtitle label
+    $subtitleLabel = New-Object System.Windows.Forms.Label
+    $subtitleLabel.Text = "Import pipe-separated .dat files into SQL Server using Excel specifications"
+    $subtitleLabel.Size = New-Object System.Drawing.Size(580, 20)
+    $subtitleLabel.Location = New-Object System.Drawing.Point(10, 45)
+    $subtitleLabel.TextAlign = "MiddleCenter"
+    $subtitleLabel.ForeColor = [System.Drawing.Color]::DarkBlue
+    $form.Controls.Add($subtitleLabel)
+
+    # Data folder section
+    $dataFolderLabel = New-Object System.Windows.Forms.Label
+    $dataFolderLabel.Text = "Data Folder:"
+    $dataFolderLabel.Size = New-Object System.Drawing.Size(100, 20)
+    $dataFolderLabel.Location = New-Object System.Drawing.Point(20, 85)
+    $form.Controls.Add($dataFolderLabel)
+
+    $dataFolderTextBox = New-Object System.Windows.Forms.TextBox
+    $dataFolderTextBox.Size = New-Object System.Drawing.Size(380, 20)
+    $dataFolderTextBox.Location = New-Object System.Drawing.Point(20, 105)
+    $dataFolderTextBox.Text = (Get-Location).Path
+    $form.Controls.Add($dataFolderTextBox)
+
+    $dataFolderButton = New-Object System.Windows.Forms.Button
+    $dataFolderButton.Text = "Browse..."
+    $dataFolderButton.Size = New-Object System.Drawing.Size(80, 25)
+    $dataFolderButton.Location = New-Object System.Drawing.Point(410, 103)
+    $dataFolderButton.Add_Click({
+        $folderDialog = New-Object System.Windows.Forms.FolderBrowserDialog
+        $folderDialog.Description = "Select folder containing .dat files"
+        $folderDialog.SelectedPath = $dataFolderTextBox.Text
+        if ($folderDialog.ShowDialog() -eq "OK") {
+            $dataFolderTextBox.Text = $folderDialog.SelectedPath
+        }
+    })
+    $form.Controls.Add($dataFolderButton)
+
+    # Excel file section
+    $excelLabel = New-Object System.Windows.Forms.Label
+    $excelLabel.Text = "Excel Specification File:"
+    $excelLabel.Size = New-Object System.Drawing.Size(150, 20)
+    $excelLabel.Location = New-Object System.Drawing.Point(20, 140)
+    $form.Controls.Add($excelLabel)
+
+    $excelTextBox = New-Object System.Windows.Forms.TextBox
+    $excelTextBox.Size = New-Object System.Drawing.Size(380, 20)
+    $excelTextBox.Location = New-Object System.Drawing.Point(20, 160)
+    $excelTextBox.Text = "ExportSpec.xlsx"
+    $form.Controls.Add($excelTextBox)
+
+    $excelButton = New-Object System.Windows.Forms.Button
+    $excelButton.Text = "Browse..."
+    $excelButton.Size = New-Object System.Drawing.Size(80, 25)
+    $excelButton.Location = New-Object System.Drawing.Point(410, 158)
+    $excelButton.Add_Click({
+        $fileDialog = New-Object System.Windows.Forms.OpenFileDialog
+        $fileDialog.Filter = "Excel files (*.xlsx;*.xls)|*.xlsx;*.xls|All files (*.*)|*.*"
+        $fileDialog.Title = "Select Excel specification file"
+        $fileDialog.InitialDirectory = $dataFolderTextBox.Text
+        if ($fileDialog.ShowDialog() -eq "OK") {
+            $excelTextBox.Text = [System.IO.Path]::GetFileName($fileDialog.FileName)
+            if ([System.IO.Path]::GetDirectoryName($fileDialog.FileName) -ne $dataFolderTextBox.Text) {
+                [System.Windows.Forms.MessageBox]::Show("Note: Excel file should be in the same folder as your .dat files for best results.", "File Location", "OK", "Information")
+            }
+        }
+    })
+    $form.Controls.Add($excelButton)
+
+    # Database connection section
+    $dbGroupBox = New-Object System.Windows.Forms.GroupBox
+    $dbGroupBox.Text = "Database Connection"
+    $dbGroupBox.Size = New-Object System.Drawing.Size(470, 120)
+    $dbGroupBox.Location = New-Object System.Drawing.Point(20, 195)
+    $form.Controls.Add($dbGroupBox)
+
+    # Server
+    $serverLabel = New-Object System.Windows.Forms.Label
+    $serverLabel.Text = "SQL Server:"
+    $serverLabel.Size = New-Object System.Drawing.Size(80, 20)
+    $serverLabel.Location = New-Object System.Drawing.Point(10, 25)
+    $dbGroupBox.Controls.Add($serverLabel)
+
+    $serverTextBox = New-Object System.Windows.Forms.TextBox
+    $serverTextBox.Size = New-Object System.Drawing.Size(180, 20)
+    $serverTextBox.Location = New-Object System.Drawing.Point(95, 23)
+    $serverTextBox.Text = "localhost"
+    $dbGroupBox.Controls.Add($serverTextBox)
+
+    # Database
+    $databaseLabel = New-Object System.Windows.Forms.Label
+    $databaseLabel.Text = "Database:"
+    $databaseLabel.Size = New-Object System.Drawing.Size(70, 20)
+    $databaseLabel.Location = New-Object System.Drawing.Point(285, 25)
+    $dbGroupBox.Controls.Add($databaseLabel)
+
+    $databaseTextBox = New-Object System.Windows.Forms.TextBox
+    $databaseTextBox.Size = New-Object System.Drawing.Size(120, 20)
+    $databaseTextBox.Location = New-Object System.Drawing.Point(340, 23)
+    $dbGroupBox.Controls.Add($databaseTextBox)
+
+    # Authentication
+    $authLabel = New-Object System.Windows.Forms.Label
+    $authLabel.Text = "Authentication:"
+    $authLabel.Size = New-Object System.Drawing.Size(85, 20)
+    $authLabel.Location = New-Object System.Drawing.Point(10, 55)
+    $dbGroupBox.Controls.Add($authLabel)
+
+    $authComboBox = New-Object System.Windows.Forms.ComboBox
+    $authComboBox.Size = New-Object System.Drawing.Size(150, 25)
+    $authComboBox.Location = New-Object System.Drawing.Point(95, 53)
+    $authComboBox.DropDownStyle = "DropDownList"
+    $authComboBox.Items.AddRange(@("Windows Authentication", "SQL Server Authentication"))
+    $authComboBox.SelectedIndex = 0
+    $dbGroupBox.Controls.Add($authComboBox)
+
+    # Username (initially hidden)
+    $usernameLabel = New-Object System.Windows.Forms.Label
+    $usernameLabel.Text = "Username:"
+    $usernameLabel.Size = New-Object System.Drawing.Size(70, 20)
+    $usernameLabel.Location = New-Object System.Drawing.Point(10, 85)
+    $usernameLabel.Visible = $false
+    $dbGroupBox.Controls.Add($usernameLabel)
+
+    $usernameTextBox = New-Object System.Windows.Forms.TextBox
+    $usernameTextBox.Size = New-Object System.Drawing.Size(120, 20)
+    $usernameTextBox.Location = New-Object System.Drawing.Point(80, 83)
+    $usernameTextBox.Visible = $false
+    $dbGroupBox.Controls.Add($usernameTextBox)
+
+    # Password (initially hidden)
+    $passwordLabel = New-Object System.Windows.Forms.Label
+    $passwordLabel.Text = "Password:"
+    $passwordLabel.Size = New-Object System.Drawing.Size(70, 20)
+    $passwordLabel.Location = New-Object System.Drawing.Point(210, 85)
+    $passwordLabel.Visible = $false
+    $dbGroupBox.Controls.Add($passwordLabel)
+
+    $passwordTextBox = New-Object System.Windows.Forms.TextBox
+    $passwordTextBox.Size = New-Object System.Drawing.Size(120, 20)
+    $passwordTextBox.Location = New-Object System.Drawing.Point(280, 83)
+    $passwordTextBox.UseSystemPasswordChar = $true
+    $passwordTextBox.Visible = $false
+    $dbGroupBox.Controls.Add($passwordTextBox)
+
+    # Authentication change handler
+    $authComboBox.Add_SelectedIndexChanged({
+        $isSqlAuth = $authComboBox.SelectedIndex -eq 1
+        $usernameLabel.Visible = $isSqlAuth
+        $usernameTextBox.Visible = $isSqlAuth
+        $passwordLabel.Visible = $isSqlAuth
+        $passwordTextBox.Visible = $isSqlAuth
+    })
+
+    # Options section
+    $optionsGroupBox = New-Object System.Windows.Forms.GroupBox
+    $optionsGroupBox.Text = "Options"
+    $optionsGroupBox.Size = New-Object System.Drawing.Size(470, 60)
+    $optionsGroupBox.Location = New-Object System.Drawing.Point(20, 325)
+    $form.Controls.Add($optionsGroupBox)
+
+    $verboseCheckBox = New-Object System.Windows.Forms.CheckBox
+    $verboseCheckBox.Text = "Enable verbose logging (recommended for troubleshooting)"
+    $verboseCheckBox.Size = New-Object System.Drawing.Size(450, 20)
+    $verboseCheckBox.Location = New-Object System.Drawing.Point(10, 25)
+    $optionsGroupBox.Controls.Add($verboseCheckBox)
+
+    # Progress section
+    $progressLabel = New-Object System.Windows.Forms.Label
+    $progressLabel.Text = "Ready to import..."
+    $progressLabel.Size = New-Object System.Drawing.Size(470, 20)
+    $progressLabel.Location = New-Object System.Drawing.Point(20, 395)
+    $form.Controls.Add($progressLabel)
+
+    $progressBar = New-Object System.Windows.Forms.ProgressBar
+    $progressBar.Size = New-Object System.Drawing.Size(470, 23)
+    $progressBar.Location = New-Object System.Drawing.Point(20, 420)
+    $progressBar.Style = "Marquee"
+    $progressBar.MarqueeAnimationSpeed = 0
+    $form.Controls.Add($progressBar)
+
+    # Output text box
+    $outputTextBox = New-Object System.Windows.Forms.TextBox
+    $outputTextBox.Multiline = $true
+    $outputTextBox.ScrollBars = "Vertical"
+    $outputTextBox.Size = New-Object System.Drawing.Size(470, 80)
+    $outputTextBox.Location = New-Object System.Drawing.Point(20, 450)
+    $outputTextBox.ReadOnly = $true
+    $outputTextBox.BackColor = [System.Drawing.Color]::Black
+    $outputTextBox.ForeColor = [System.Drawing.Color]::Lime
+    $outputTextBox.Font = New-Object System.Drawing.Font("Consolas", 8)
+    $form.Controls.Add($outputTextBox)
+
+    # Buttons
+    $startButton = New-Object System.Windows.Forms.Button
+    $startButton.Text = "Start Import"
+    $startButton.Size = New-Object System.Drawing.Size(100, 30)
+    $startButton.Location = New-Object System.Drawing.Point(500, 450)
+    $startButton.BackColor = [System.Drawing.Color]::LightGreen
+    $startButton.Font = New-Object System.Drawing.Font("Segoe UI", 9, [System.Drawing.FontStyle]::Bold)
+    $form.Controls.Add($startButton)
+
+    $cancelButton = New-Object System.Windows.Forms.Button
+    $cancelButton.Text = "Cancel"
+    $cancelButton.Size = New-Object System.Drawing.Size(100, 30)
+    $cancelButton.Location = New-Object System.Drawing.Point(500, 490)
+    $cancelButton.Enabled = $false
+    $form.Controls.Add($cancelButton)
+
+    $exitButton = New-Object System.Windows.Forms.Button
+    $exitButton.Text = "Exit"
+    $exitButton.Size = New-Object System.Drawing.Size(100, 30)
+    $exitButton.Location = New-Object System.Drawing.Point(500, 530)
+    $exitButton.Add_Click({ $form.Close() })
+    $form.Controls.Add($exitButton)
+
+    # Event handlers
+    $startButton.Add_Click({
+        # Validate inputs
+        if (-not (Test-Path $dataFolderTextBox.Text)) {
+            [System.Windows.Forms.MessageBox]::Show("Data folder does not exist. Please select a valid folder.", "Error", "OK", "Error")
+            return
+        }
+
+        $excelPath = Join-Path $dataFolderTextBox.Text $excelTextBox.Text
+        if (-not (Test-Path $excelPath)) {
+            [System.Windows.Forms.MessageBox]::Show("Excel specification file not found in the data folder.", "Error", "OK", "Error")
+            return
+        }
+
+        # Check for Employee.dat file
+        $employeeFiles = Get-ChildItem -Path $dataFolderTextBox.Text -Name "*Employee.dat"
+        if ($employeeFiles.Count -eq 0) {
+            [System.Windows.Forms.MessageBox]::Show("No *Employee.dat file found in the data folder. This file is required for prefix detection.", "Error", "OK", "Error")
+            return
+        }
+
+        # Validate database connection fields
+        if ([string]::IsNullOrWhiteSpace($serverTextBox.Text)) {
+            [System.Windows.Forms.MessageBox]::Show("Please enter a SQL Server instance name.", "Error", "OK", "Error")
+            return
+        }
+
+        if ([string]::IsNullOrWhiteSpace($databaseTextBox.Text)) {
+            [System.Windows.Forms.MessageBox]::Show("Please enter a database name.", "Error", "OK", "Error")
+            return
+        }
+
+        if ($authComboBox.SelectedIndex -eq 1) {
+            if ([string]::IsNullOrWhiteSpace($usernameTextBox.Text)) {
+                [System.Windows.Forms.MessageBox]::Show("Please enter a username for SQL Server authentication.", "Error", "OK", "Error")
+                return
+            }
+            if ([string]::IsNullOrWhiteSpace($passwordTextBox.Text)) {
+                [System.Windows.Forms.MessageBox]::Show("Please enter a password for SQL Server authentication.", "Error", "OK", "Error")
+                return
+            }
+        }
+
+        # Build connection string
+        if ($authComboBox.SelectedIndex -eq 1) {
+            $connectionString = "Server=$($serverTextBox.Text);Database=$($databaseTextBox.Text);User Id=$($usernameTextBox.Text);Password=$($passwordTextBox.Text);"
+        } else {
+            $connectionString = "Server=$($serverTextBox.Text);Database=$($databaseTextBox.Text);Integrated Security=True;"
+        }
+
+        # Test connection first
+        $outputTextBox.AppendText("Testing database connection...`r`n")
+        if (-not (Test-DatabaseConnection -ConnectionString $connectionString -EnableVerbose:$verboseCheckBox.Checked)) {
+            $outputTextBox.AppendText("ERROR: Database connection failed!`r`n")
+            [System.Windows.Forms.MessageBox]::Show("Database connection failed. Please check your connection details.", "Connection Error", "OK", "Error")
+            return
+        }
+
+        $outputTextBox.AppendText("Database connection successful!`r`n")
+
+        # Disable start button and enable cancel
+        $startButton.Enabled = $false
+        $cancelButton.Enabled = $true
+        $progressBar.MarqueeAnimationSpeed = 30
+        $progressLabel.Text = "Import in progress..."
+        $outputTextBox.AppendText("Starting import process...`r`n")
+
+        # Create a background runspace to execute the import
+        $global:ImportRunspace = [runspacefactory]::CreateRunspace()
+        $global:ImportRunspace.Open()
+        $global:ImportRunspace.SessionStateProxy.SetVariable("DataFolder", $dataFolderTextBox.Text)
+        $global:ImportRunspace.SessionStateProxy.SetVariable("ExcelSpecFile", $excelTextBox.Text)
+        $global:ImportRunspace.SessionStateProxy.SetVariable("ConnectionString", $connectionString)
+        $global:ImportRunspace.SessionStateProxy.SetVariable("EnableVerbose", $verboseCheckBox.Checked)
+        $global:ImportRunspace.SessionStateProxy.SetVariable("ModulePath", $modulePath)
+
+        $global:ImportPowerShell = [powershell]::Create()
+        $global:ImportPowerShell.Runspace = $global:ImportRunspace
+
+        # Import script to run in background
+        $importScript = {
+            try {
+                Import-Module $ModulePath -Force
+                Import-Module SqlServer -Force
+                Import-Module ImportExcel -Force
+
+                # Execute the import
+                $result = Invoke-SqlServerDataImport -DataFolder $DataFolder -ExcelSpecFile $ExcelSpecFile -ConnectionString $ConnectionString -TableExistsAction "Recreate" -FieldMismatchAction "Skip" -EnableVerbose:$EnableVerbose
+
+                return @{
+                    Success = $true
+                    Message = "Import completed successfully"
+                    Summary = $result
+                }
+            }
+            catch {
+                return @{
+                    Success = $false
+                    Message = $_.Exception.Message
+                    Error = $_
+                }
+            }
+        }
+
+        $global:ImportPowerShell.AddScript($importScript)
+        $asyncResult = $global:ImportPowerShell.BeginInvoke()
+
+        # Start a timer to check for completion
+        $timer = New-Object System.Windows.Forms.Timer
+        $timer.Interval = 1000
+        $timer.Add_Tick({
+            if ($asyncResult.IsCompleted) {
+                $timer.Stop()
+                $progressBar.MarqueeAnimationSpeed = 0
+                $startButton.Enabled = $true
+                $cancelButton.Enabled = $false
+
+                try {
+                    $result = $global:ImportPowerShell.EndInvoke($asyncResult)
+
+                    if ($result.Success) {
+                        $progressLabel.Text = "Import completed successfully!"
+                        $progressLabel.ForegroundColor = [System.Drawing.Color]::Green
+                        $outputTextBox.AppendText("Import completed successfully!`r`n")
+                        $outputTextBox.AppendText("$($result.Summary.Count) tables processed.`r`n")
+                    } else {
+                        $progressLabel.Text = "Import failed. Check output for details."
+                        $progressLabel.ForegroundColor = [System.Drawing.Color]::Red
+                        $outputTextBox.AppendText("Import failed: $($result.Message)`r`n")
+                    }
+                }
+                catch {
+                    $progressLabel.Text = "Import failed with error."
+                    $progressLabel.ForegroundColor = [System.Drawing.Color]::Red
+                    $outputTextBox.AppendText("Import failed: $($_.Exception.Message)`r`n")
+                }
+
+                # Clean up
+                if ($global:ImportPowerShell) {
+                    $global:ImportPowerShell.Dispose()
+                    $global:ImportPowerShell = $null
+                }
+                if ($global:ImportRunspace) {
+                    $global:ImportRunspace.Close()
+                    $global:ImportRunspace.Dispose()
+                    $global:ImportRunspace = $null
+                }
+            }
+        })
+        $timer.Start()
+    })
+
+    $cancelButton.Add_Click({
+        if ($global:ImportPowerShell -and $global:ImportRunspace) {
+            $result = [System.Windows.Forms.MessageBox]::Show("Are you sure you want to cancel the import?", "Confirm Cancel", "YesNo", "Question")
+            if ($result -eq "Yes") {
+                try {
+                    $global:ImportPowerShell.Stop()
+                    $global:ImportRunspace.Close()
+                }
+                catch { }
+
+                $progressBar.MarqueeAnimationSpeed = 0
+                $progressLabel.Text = "Import cancelled by user."
+                $progressLabel.ForegroundColor = [System.Drawing.Color]::Orange
+                $startButton.Enabled = $true
+                $cancelButton.Enabled = $false
+                $outputTextBox.AppendText("Import cancelled by user.`r`n")
+            }
+        }
+    })
+
+    # Show the form
+    $form.ShowDialog()
+}
+
+# Show the GUI
+Show-ImportGUI
