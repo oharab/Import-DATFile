@@ -1,0 +1,98 @@
+# Data Files - Import Source Data
+*.dat
+*.DAT
+
+# Excel Specification Files (may contain sensitive schema info)
+*.xlsx
+*.xls
+ExportSpec.*
+
+# Log Files
+*.log
+*.txt
+
+# PowerShell Module Cache
+PSGetModuleInfo.xml
+
+# Visual Studio / VS Code
+.vscode/
+.vs/
+*.suo
+*.user
+*.userprefs
+*.sln.docstates
+
+# Temporary files
+*.tmp
+*.temp
+*~
+
+# Windows System Files
+Thumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# macOS System Files
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Linux System Files
+*~
+.nfs*
+
+# Backup Files
+*.bak
+*.backup
+*.old
+
+# Configuration Files with Sensitive Data
+config.json
+appsettings.json
+connection.config
+*.config
+
+# Test Data
+test-data/
+sample-data/
+mock-data/
+
+# Output/Export Files
+export/
+output/
+results/
+
+# Documentation Build Artifacts
+docs/_build/
+site/
+
+# Package Files
+*.zip
+*.rar
+*.7z
+*.tar.gz
+
+# IDE and Editor Files
+*.swp
+*.swo
+*~
+.idea/
+
+# OS Generated Files
+.directory
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+
+# Custom Application Data
+import-history/
+processed/
+archive/
+
+# Sensitive Information
+*.pem
+*.key
+*.p12
+*.pfx
+secrets.ps1
+credentials.ps1
