@@ -25,6 +25,7 @@ This is a PowerShell-based data import utility that reads pipe-separated .dat fi
 3. Establishes SQL Server connection (Windows or SQL auth)
 4. Creates schema and tables based on specifications
 5. Imports data from matching .dat files in batches
+6. Displays comprehensive import summary with row counts
 
 ## Running the Script
 
@@ -125,6 +126,30 @@ Use `-Verbose` parameter for detailed diagnostic information:
 [2024-01-15 14:30:27] [SUCCESS] Configuration completed
 ```
 
+## Import Summary
+
+After all imports complete, the script automatically displays a comprehensive summary:
+- **Table List**: All successfully imported tables with schema qualification
+- **Row Counts**: Number of rows imported per table with thousand separators
+- **Totals**: Total number of tables and total rows imported
+- **Formatted Display**: Clean tabular output for easy review
+
+### Example Summary Output
+```
+=== Import Summary ===
+
+Imported Tables:
+Schema: ACME2024
+
+Table Name                          Rows Imported
+[ACME2024].[Employee]                      1,234
+[ACME2024].[Department]                       45
+[ACME2024].[Project]                         189
+
+Total Tables Imported: 3
+Total Rows Imported: 1,468
+```
+
 ## Development Notes
 
 - Batch processing prevents memory issues with large datasets
@@ -133,3 +158,4 @@ Use `-Verbose` parameter for detailed diagnostic information:
 - Interactive prompts for critical decisions
 - Detailed progress reporting during import process
 - Comprehensive logging with verbose mode for troubleshooting
+- Automatic import summary with detailed statistics

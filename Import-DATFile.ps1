@@ -191,7 +191,7 @@ function Get-DataTypeMapping {
     }
 }
 
-function Find-DataPrefix {
+function Get-DataPrefix {
     param([string]$FolderPath)
 
     Write-Log "Starting prefix detection in folder: $FolderPath" -Level "INFO"
@@ -297,7 +297,7 @@ WHERE TABLE_SCHEMA = '$SchemaName' AND TABLE_NAME = '$TableName'
     }
 }
 
-function Create-Schema {
+function New-Schema {
     param([string]$ConnectionString, [string]$SchemaName)
 
     Write-Log "Creating/verifying schema: $SchemaName" -Level "INFO"
@@ -347,7 +347,7 @@ function Get-TableAction {
     }
 }
 
-function Create-Table {
+function New-Table {
     param(
         [string]$ConnectionString,
         [string]$SchemaName,
@@ -424,6 +424,54 @@ function Get-FieldMismatchAction {
             return "Skip"
         }
     }
+}
+
+function Show-ImportSummary {
+    param([string]$SchemaName)
+
+    Write-Log "Generating import summary" -Level "INFO"
+    Write-Host "`n=== Import Summary ===" -ForegroundColor Cyan
+
+    if ($global:ImportSummary.Count -eq 0) {
+        Write-Host "No tables were imported." -ForegroundColor Yellow
+        Write-Log "No tables were imported" -Level "WARNING"
+        return
+    }
+
+    Write-Host "`nImported Tables:" -ForegroundColor Green
+    Write-Host "Schema: $SchemaName" -ForegroundColor White
+    Write-Host "=" * 50 -ForegroundColor Gray
+
+    $totalRows = 0
+    $summaryData = @()
+
+    foreach ($item in $global:ImportSummary) {
+        $tableDisplay = "[$SchemaName].[$($item.TableName)]"
+        $rowDisplay = "{0:N0}" -f $item.RowCount
+        $summaryData += [PSCustomObject]@{
+            Table = $tableDisplay
+            Rows = $rowDisplay
+        }
+        $totalRows += $item.RowCount
+        Write-LogVerbose "Summary entry: $tableDisplay - $rowDisplay rows"
+    }
+
+    # Display in formatted table
+    $summaryData | Format-Table -Property @{
+        Label = "Table Name"
+        Expression = { $_.Table }
+        Width = 35
+    }, @{
+        Label = "Rows Imported"
+        Expression = { $_.Rows }
+        Width = 15
+        Alignment = "Right"
+    } -AutoSize
+
+    Write-Host "=" * 50 -ForegroundColor Gray
+    Write-Host "Total Tables Imported: $($global:ImportSummary.Count)" -ForegroundColor Green
+    Write-Host "Total Rows Imported: $("{0:N0}" -f $totalRows)" -ForegroundColor Green
+    Write-Log "Import summary completed - $($global:ImportSummary.Count) tables, $totalRows total rows" -Level "SUCCESS"
 }
 
 function Import-DataFile {
@@ -552,10 +600,14 @@ function Import-DataFile {
 
     Write-Host "Successfully imported $rowCount rows into [$SchemaName].[$TableName]" -ForegroundColor Green
     Write-Log "Data import completed successfully - $rowCount rows imported into [$SchemaName].[$TableName]" -Level "SUCCESS"
+
+    # Return row count for summary tracking
+    return $rowCount
 }
 
-# Global variable to track field skipping behavior
+# Global variables
 $global:AlwaysSkipFirstField = $false
+$global:ImportSummary = @()
 
 # Main script execution
 Write-Host "=== SQL Server Data Import Script ===" -ForegroundColor Cyan
@@ -588,14 +640,14 @@ if (-not (Test-Path $excelPath)) {
 }
 
 # Find prefix and get database connection
-$prefix = Find-DataPrefix -FolderPath $DataFolder
+$prefix = Get-DataPrefix -FolderPath $DataFolder
 $connectionString = Get-DatabaseConnection
 
 # Get schema name
 $schemaName = Get-SchemaName -DefaultSchema $prefix
 
 # Create schema if needed
-Create-Schema -ConnectionString $connectionString -SchemaName $schemaName
+New-Schema -ConnectionString $connectionString -SchemaName $schemaName
 
 # Read table specifications
 $tableSpecs = Get-TableSpecifications -ExcelPath $excelPath
@@ -677,7 +729,7 @@ foreach ($datFile in $datFiles) {
                     Invoke-Sqlcmd -ConnectionString $connectionString -Query $dropQuery -ErrorAction Stop
                     Write-Host "Table dropped successfully" -ForegroundColor Green
                     Write-LogVerbose "Table [$schemaName].[$tableName] dropped successfully"
-                    Create-Table -ConnectionString $connectionString -SchemaName $schemaName -TableName $tableName -Fields $tableFields
+                    New-Table -ConnectionString $connectionString -SchemaName $schemaName -TableName $tableName -Fields $tableFields
                 }
                 catch {
                     Write-Log "Failed to recreate table [$schemaName].[$tableName]: $($_.Exception.Message)" -Level "ERROR"
@@ -690,12 +742,20 @@ foreach ($datFile in $datFiles) {
     else {
         # Create new table
         Write-LogVerbose "Table [$schemaName].[$tableName] does not exist - creating new table"
-        Create-Table -ConnectionString $connectionString -SchemaName $schemaName -TableName $tableName -Fields $tableFields
+        New-Table -ConnectionString $connectionString -SchemaName $schemaName -TableName $tableName -Fields $tableFields
     }
     
     # Import data
     try {
-        Import-DataFile -ConnectionString $connectionString -SchemaName $schemaName -TableName $tableName -FilePath $datFile.FullName -Fields $tableFields
+        $rowsImported = Import-DataFile -ConnectionString $connectionString -SchemaName $schemaName -TableName $tableName -FilePath $datFile.FullName -Fields $tableFields
+
+        # Add to import summary
+        $global:ImportSummary += [PSCustomObject]@{
+            TableName = $tableName
+            RowCount = $rowsImported
+            FileName = $datFile.Name
+        }
+        Write-LogVerbose "Added to import summary: $tableName - $rowsImported rows"
     }
     catch {
         Write-Log "Failed to import data for table '$tableName': $($_.Exception.Message)" -Level "ERROR"
@@ -703,6 +763,9 @@ foreach ($datFile in $datFiles) {
         continue
     }
 }
+
+# Display import summary
+Show-ImportSummary -SchemaName $schemaName
 
 Write-Log "Import process completed successfully" -Level "SUCCESS"
 Write-Host "`n=== Import Process Completed ===" -ForegroundColor Green
