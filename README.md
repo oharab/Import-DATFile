@@ -4,6 +4,12 @@ A powerful PowerShell script that imports pipe-separated `.dat` files into SQL S
 
 ## 🚀 Quick Start
 
+### 🖱️ Easy GUI Method (Recommended for most users)
+1. **Double-click** `Launch-Import-GUI.bat`
+2. **Use the friendly interface** to select your data folder and Excel file
+3. **Click "Start Import"** and watch the progress!
+
+### ⌨️ PowerShell Method (For advanced users)
 1. **Install Prerequisites**
    ```powershell
    Install-Module -Name SqlServer
@@ -51,7 +57,19 @@ Your Excel file should contain these columns:
 
 ## 🎯 Usage Examples
 
-### Basic Usage (Interactive)
+### 🖥️ GUI Interface (Easiest)
+1. **Double-click** `Launch-Import-GUI.bat`
+2. **Select** your data folder using the Browse button
+3. **Choose** your Excel specification file
+4. **Check options** like verbose logging if needed
+5. **Click "Start Import"** and monitor progress in real-time
+
+![GUI Interface Features](gui-preview.png)
+*User-friendly interface with file browsers, progress tracking, and real-time output*
+
+### ⌨️ PowerShell Command Line
+
+#### Basic Usage (Interactive)
 ```powershell
 .\Import-DATFile.ps1
 ```
@@ -61,12 +79,12 @@ The script will prompt you for:
 - Database connection details
 - Schema name (defaults to detected prefix)
 
-### With Parameters
+#### With Parameters
 ```powershell
 .\Import-DATFile.ps1 -DataFolder "C:\MyData" -ExcelSpecFile "MySpecs.xlsx"
 ```
 
-### With Verbose Logging
+#### With Verbose Logging
 ```powershell
 .\Import-DATFile.ps1 -Verbose
 ```
@@ -143,7 +161,18 @@ Total Rows Imported: 1,468
 
 ## 🐛 Troubleshooting
 
-### Common Issues
+### 🖥️ GUI Interface Issues
+
+**GUI won't start**
+- Right-click `Launch-Import-GUI.bat` and "Run as Administrator"
+- Ensure PowerShell execution policy allows scripts
+- Install required PowerShell modules (SqlServer, ImportExcel)
+
+**Browse buttons don't work**
+- Type paths manually if file dialogs fail
+- Ensure you have read permissions to the folders
+
+### 📂 Common Data Issues
 
 **"No *Employee.dat file found"**
 - Ensure you have at least one file ending in `Employee.dat`
@@ -158,12 +187,14 @@ Total Rows Imported: 1,468
 - The script will prompt you how to handle this
 
 **Performance is slow**
-- Enable verbose logging with `-Verbose` to see if SqlBulkCopy is being used
+- Enable verbose logging to see if SqlBulkCopy is being used
 - Check for table conflicts that might be causing fallback to INSERT method
 
-### Getting Help
+### 🔧 Getting Help
 
-Run with verbose logging for detailed diagnostics:
+**GUI Method:** Check the output window for detailed error messages
+
+**Command Line Method:** Run with verbose logging for detailed diagnostics:
 ```powershell
 .\Import-DATFile.ps1 -Verbose
 ```
