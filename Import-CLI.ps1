@@ -93,10 +93,14 @@ function Get-DatabaseConnection {
     if ($authChoice -eq "2") {
         $username = Read-Host "Enter username"
         Write-ImportLogVerbose "SQL Server username specified: $username" -EnableVerbose:$Verbose
-        $password = Read-Host "Enter password" -AsSecureString
+        $securePassword = Read-Host "Enter password" -AsSecureString
         Write-ImportLogVerbose "SQL Server password provided (secured)" -EnableVerbose:$Verbose
-        $credential = New-Object System.Management.Automation.PSCredential($username, $password)
-        $connectionString = "Server=$server;Database=$database;User Id=$username;Password=$([Runtime.InteropServices.Marshal]::PtrToStringAuto([Runtime.InteropServices.Marshal]::SecureStringToBSTR($password)));"
+        # Convert SecureString to plaintext for connection string (required by SQL Server)
+        $BSTR = [System.Runtime.InteropServices.Marshal]::SecureStringToBSTR($securePassword)
+        $password = [System.Runtime.InteropServices.Marshal]::PtrToStringAuto($BSTR)
+        $connectionString = "Server=$server;Database=$database;User Id=$username;Password=$password;"
+        # Clear password from memory immediately after use
+        [System.Runtime.InteropServices.Marshal]::ZeroFreeBSTR($BSTR)
     }
     else {
         Write-ImportLogVerbose "Using Windows Authentication" -EnableVerbose:$Verbose

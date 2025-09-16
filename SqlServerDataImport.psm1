@@ -217,14 +217,16 @@ function Test-TableExists {
     )
 
     Write-ImportLogVerbose "Checking if table [$SchemaName].[$TableName] exists" -EnableVerbose:$EnableVerbose
+
+    # Use parameterized query to prevent SQL injection
     $query = @"
 SELECT COUNT(*)
 FROM INFORMATION_SCHEMA.TABLES
-WHERE TABLE_SCHEMA = '$SchemaName' AND TABLE_NAME = '$TableName'
+WHERE TABLE_SCHEMA = @SchemaName AND TABLE_NAME = @TableName
 "@
 
     try {
-        $result = Invoke-Sqlcmd -ConnectionString $ConnectionString -Query $query -ErrorAction Stop
+        $result = Invoke-Sqlcmd -ConnectionString $ConnectionString -Query $query -Variable @("SchemaName='$SchemaName'", "TableName='$TableName'") -ErrorAction Stop
         $exists = $result.Column1 -gt 0
         Write-ImportLogVerbose "Table [$SchemaName].[$TableName] exists: $exists" -EnableVerbose:$EnableVerbose
         return $exists
@@ -247,21 +249,29 @@ function New-DatabaseSchema {
     )
 
     Write-ImportLog "Creating/verifying schema: $SchemaName" -Level "INFO"
+
+    # Validate schema name to prevent injection - only allow alphanumeric and underscore
+    if ($SchemaName -notmatch '^[a-zA-Z0-9_]+$') {
+        throw "Invalid schema name. Schema names must contain only letters, numbers, and underscores."
+    }
+
+    # Use quoted identifier to safely include schema name
     $query = @"
-IF NOT EXISTS (SELECT * FROM sys.schemas WHERE name = '$SchemaName')
+IF NOT EXISTS (SELECT * FROM sys.schemas WHERE name = @SchemaName)
 BEGIN
-    EXEC('CREATE SCHEMA [$SchemaName]')
-    PRINT 'Schema [$SchemaName] created successfully'
+    DECLARE @sql NVARCHAR(MAX) = 'CREATE SCHEMA [' + @SchemaName + ']'
+    EXEC sp_executesql @sql
+    PRINT 'Schema [' + @SchemaName + '] created successfully'
 END
 ELSE
 BEGIN
-    PRINT 'Schema [$SchemaName] already exists'
+    PRINT 'Schema [' + @SchemaName + '] already exists'
 END
 "@
 
     Write-ImportLogVerbose "Executing schema creation query for: $SchemaName" -EnableVerbose:$EnableVerbose
     try {
-        Invoke-Sqlcmd -ConnectionString $ConnectionString -Query $query -ErrorAction Stop
+        Invoke-Sqlcmd -ConnectionString $ConnectionString -Query $query -Variable @("SchemaName='$SchemaName'") -ErrorAction Stop
         Write-Host "Schema '$SchemaName' is ready" -ForegroundColor Green
         Write-ImportLog "Schema '$SchemaName' is ready" -Level "SUCCESS"
     }

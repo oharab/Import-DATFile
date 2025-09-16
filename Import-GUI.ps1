@@ -40,7 +40,7 @@ function Show-ImportGUI {
     # Create main form
     $form = New-Object System.Windows.Forms.Form
     $form.Text = "SQL Server Data Import Utility"
-    $form.Size = New-Object System.Drawing.Size(600, 600)
+    $form.Size = New-Object System.Drawing.Size(620, 680)
     $form.StartPosition = "CenterScreen"
     $form.FormBorderStyle = "FixedDialog"
     $form.MaximizeBox = $false
@@ -207,29 +207,72 @@ function Show-ImportGUI {
         $passwordTextBox.Visible = $isSqlAuth
     })
 
+    # Schema section
+    $schemaLabel = New-Object System.Windows.Forms.Label
+    $schemaLabel.Text = "Schema Name (optional - defaults to detected prefix):"
+    $schemaLabel.Size = New-Object System.Drawing.Size(300, 20)
+    $schemaLabel.Location = New-Object System.Drawing.Point(20, 325)
+    $form.Controls.Add($schemaLabel)
+
+    $schemaTextBox = New-Object System.Windows.Forms.TextBox
+    $schemaTextBox.Size = New-Object System.Drawing.Size(380, 20)
+    $schemaTextBox.Location = New-Object System.Drawing.Point(20, 345)
+    $schemaTextBox.PlaceholderText = "Leave empty to use detected prefix"
+    $form.Controls.Add($schemaTextBox)
+
     # Options section
     $optionsGroupBox = New-Object System.Windows.Forms.GroupBox
-    $optionsGroupBox.Text = "Options"
-    $optionsGroupBox.Size = New-Object System.Drawing.Size(470, 60)
-    $optionsGroupBox.Location = New-Object System.Drawing.Point(20, 325)
+    $optionsGroupBox.Text = "Import Options"
+    $optionsGroupBox.Size = New-Object System.Drawing.Size(470, 90)
+    $optionsGroupBox.Location = New-Object System.Drawing.Point(20, 375)
     $form.Controls.Add($optionsGroupBox)
+
+    # Table exists action
+    $tableActionLabel = New-Object System.Windows.Forms.Label
+    $tableActionLabel.Text = "If table exists:"
+    $tableActionLabel.Size = New-Object System.Drawing.Size(100, 20)
+    $tableActionLabel.Location = New-Object System.Drawing.Point(10, 25)
+    $optionsGroupBox.Controls.Add($tableActionLabel)
+
+    $tableActionComboBox = New-Object System.Windows.Forms.ComboBox
+    $tableActionComboBox.Size = New-Object System.Drawing.Size(120, 25)
+    $tableActionComboBox.Location = New-Object System.Drawing.Point(110, 23)
+    $tableActionComboBox.DropDownStyle = "DropDownList"
+    $tableActionComboBox.Items.AddRange(@("Recreate", "Skip", "Truncate"))
+    $tableActionComboBox.SelectedIndex = 0
+    $optionsGroupBox.Controls.Add($tableActionComboBox)
+
+    # Field mismatch action
+    $fieldActionLabel = New-Object System.Windows.Forms.Label
+    $fieldActionLabel.Text = "Field mismatch:"
+    $fieldActionLabel.Size = New-Object System.Drawing.Size(100, 20)
+    $fieldActionLabel.Location = New-Object System.Drawing.Point(245, 25)
+    $optionsGroupBox.Controls.Add($fieldActionLabel)
+
+    $fieldActionComboBox = New-Object System.Windows.Forms.ComboBox
+    $fieldActionComboBox.Size = New-Object System.Drawing.Size(120, 25)
+    $fieldActionComboBox.Location = New-Object System.Drawing.Point(340, 23)
+    $fieldActionComboBox.DropDownStyle = "DropDownList"
+    $fieldActionComboBox.Items.AddRange(@("Skip first field", "Exit import"))
+    $fieldActionComboBox.SelectedIndex = 0
+    $optionsGroupBox.Controls.Add($fieldActionComboBox)
 
     $verboseCheckBox = New-Object System.Windows.Forms.CheckBox
     $verboseCheckBox.Text = "Enable verbose logging (recommended for troubleshooting)"
     $verboseCheckBox.Size = New-Object System.Drawing.Size(450, 20)
-    $verboseCheckBox.Location = New-Object System.Drawing.Point(10, 25)
+    $verboseCheckBox.Location = New-Object System.Drawing.Point(10, 55)
     $optionsGroupBox.Controls.Add($verboseCheckBox)
 
     # Progress section
     $progressLabel = New-Object System.Windows.Forms.Label
     $progressLabel.Text = "Ready to import..."
     $progressLabel.Size = New-Object System.Drawing.Size(470, 20)
-    $progressLabel.Location = New-Object System.Drawing.Point(20, 395)
+    $progressLabel.Location = New-Object System.Drawing.Point(20, 475)
     $form.Controls.Add($progressLabel)
 
     $progressBar = New-Object System.Windows.Forms.ProgressBar
     $progressBar.Size = New-Object System.Drawing.Size(470, 23)
-    $progressBar.Location = New-Object System.Drawing.Point(20, 420)
+    $progressBar.Location = New-Object System.Drawing.Point(20, 500)
     $progressBar.Style = "Marquee"
     $progressBar.MarqueeAnimationSpeed = 0
     $form.Controls.Add($progressBar)
@@ -239,7 +282,7 @@ function Show-ImportGUI {
     $outputTextBox.Multiline = $true
     $outputTextBox.ScrollBars = "Vertical"
     $outputTextBox.Size = New-Object System.Drawing.Size(470, 80)
-    $outputTextBox.Location = New-Object System.Drawing.Point(20, 450)
+    $outputTextBox.Location = New-Object System.Drawing.Point(20, 530)
     $outputTextBox.ReadOnly = $true
     $outputTextBox.BackColor = [System.Drawing.Color]::Black
     $outputTextBox.ForeColor = [System.Drawing.Color]::Lime
@@ -250,7 +293,7 @@ function Show-ImportGUI {
     $startButton = New-Object System.Windows.Forms.Button
     $startButton.Text = "Start Import"
     $startButton.Size = New-Object System.Drawing.Size(100, 30)
-    $startButton.Location = New-Object System.Drawing.Point(500, 450)
+    $startButton.Location = New-Object System.Drawing.Point(500, 530)
     $startButton.BackColor = [System.Drawing.Color]::LightGreen
     $startButton.Font = New-Object System.Drawing.Font("Segoe UI", 9, [System.Drawing.FontStyle]::Bold)
     $form.Controls.Add($startButton)
@@ -258,14 +301,14 @@ function Show-ImportGUI {
     $cancelButton = New-Object System.Windows.Forms.Button
     $cancelButton.Text = "Cancel"
     $cancelButton.Size = New-Object System.Drawing.Size(100, 30)
-    $cancelButton.Location = New-Object System.Drawing.Point(500, 490)
+    $cancelButton.Location = New-Object System.Drawing.Point(500, 570)
     $cancelButton.Enabled = $false
     $form.Controls.Add($cancelButton)
 
     $exitButton = New-Object System.Windows.Forms.Button
     $exitButton.Text = "Exit"
     $exitButton.Size = New-Object System.Drawing.Size(100, 30)
-    $exitButton.Location = New-Object System.Drawing.Point(500, 530)
+    $exitButton.Location = New-Object System.Drawing.Point(500, 610)
     $exitButton.Add_Click({ $form.Close() })
     $form.Controls.Add($exitButton)
 
@@ -312,9 +355,16 @@ function Show-ImportGUI {
             }
         }
 
-        # Build connection string
+        # Build connection string (handle password securely)
         if ($authComboBox.SelectedIndex -eq 1) {
-            $connectionString = "Server=$($serverTextBox.Text);Database=$($databaseTextBox.Text);User Id=$($usernameTextBox.Text);Password=$($passwordTextBox.Text);"
+            # Use SecureString for password to avoid plaintext storage
+            $securePassword = ConvertTo-SecureString $passwordTextBox.Text -AsPlainText -Force
+            $credential = New-Object System.Management.Automation.PSCredential($usernameTextBox.Text, $securePassword)
+            $BSTR = [System.Runtime.InteropServices.Marshal]::SecureStringToBSTR($securePassword)
+            $password = [System.Runtime.InteropServices.Marshal]::PtrToStringAuto($BSTR)
+            $connectionString = "Server=$($serverTextBox.Text);Database=$($databaseTextBox.Text);User Id=$($usernameTextBox.Text);Password=$password;"
+            # Clear password from memory immediately
+            [System.Runtime.InteropServices.Marshal]::ZeroFreeBSTR($BSTR)
         } else {
             $connectionString = "Server=$($serverTextBox.Text);Database=$($databaseTextBox.Text);Integrated Security=True;"
         }
@@ -339,9 +389,29 @@ function Show-ImportGUI {
         # Create a background runspace to execute the import
         $global:ImportRunspace = [runspacefactory]::CreateRunspace()
         $global:ImportRunspace.Open()
+        # Determine schema name
+        $schemaName = if ([string]::IsNullOrWhiteSpace($schemaTextBox.Text)) { $null } else { $schemaTextBox.Text.Trim() }
+
+        # Map GUI selections to module parameters
+        $tableAction = switch ($tableActionComboBox.SelectedIndex) {
+            0 { "Recreate" }
+            1 { "Skip" }
+            2 { "Truncate" }
+            default { "Recreate" }
+        }
+
+        $fieldAction = switch ($fieldActionComboBox.SelectedIndex) {
+            0 { "Skip" }
+            1 { "Exit" }
+            default { "Skip" }
+        }
+
         $global:ImportRunspace.SessionStateProxy.SetVariable("DataFolder", $dataFolderTextBox.Text)
         $global:ImportRunspace.SessionStateProxy.SetVariable("ExcelSpecFile", $excelTextBox.Text)
         $global:ImportRunspace.SessionStateProxy.SetVariable("ConnectionString", $connectionString)
+        $global:ImportRunspace.SessionStateProxy.SetVariable("SchemaName", $schemaName)
+        $global:ImportRunspace.SessionStateProxy.SetVariable("TableAction", $tableAction)
+        $global:ImportRunspace.SessionStateProxy.SetVariable("FieldAction", $fieldAction)
         $global:ImportRunspace.SessionStateProxy.SetVariable("EnableVerbose", $verboseCheckBox.Checked)
         $global:ImportRunspace.SessionStateProxy.SetVariable("ModulePath", $modulePath)
 
@@ -356,7 +426,7 @@ function Show-ImportGUI {
                 Import-Module ImportExcel -Force
 
                 # Execute the import
-                $result = Invoke-SqlServerDataImport -DataFolder $DataFolder -ExcelSpecFile $ExcelSpecFile -ConnectionString $ConnectionString -TableExistsAction "Recreate" -FieldMismatchAction "Skip" -EnableVerbose:$EnableVerbose
+                $result = Invoke-SqlServerDataImport -DataFolder $DataFolder -ExcelSpecFile $ExcelSpecFile -ConnectionString $ConnectionString -SchemaName $SchemaName -TableExistsAction $TableAction -FieldMismatchAction $FieldAction -EnableVerbose:$EnableVerbose
 
                 return @{
                     Success = $true
