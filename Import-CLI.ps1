@@ -287,15 +287,23 @@ try {
         }
 
         # Check field count and handle mismatch
+        Write-ImportLogVerbose "CLI: Checking field count mismatch for table '$tableName'" -EnableVerbose:$Verbose
         $skipFirstField = $alwaysSkipFirst
+        Write-ImportLogVerbose "CLI: alwaysSkipFirst = $alwaysSkipFirst" -EnableVerbose:$Verbose
+
         if (-not $alwaysSkipFirst) {
             $testLines = Get-Content -Path $datFile.FullName -TotalCount 1
             if ($testLines.Count -gt 0) {
                 $firstLineFields = ($testLines[0] -split '\|').Count
                 $specFieldCount = $tableFields.Count
+                Write-ImportLogVerbose "CLI: Field count comparison - DAT file: $firstLineFields, Excel spec: $specFieldCount" -EnableVerbose:$Verbose
+                Write-ImportLogVerbose "CLI: First line of DAT file: '$($testLines[0])'" -EnableVerbose:$Verbose
 
                 if ($firstLineFields -eq ($specFieldCount + 1)) {
+                    Write-ImportLogVerbose "CLI: Field mismatch detected - prompting user" -EnableVerbose:$Verbose
                     $action = Get-FieldMismatchAction -TableName $tableName -FileFieldCount $firstLineFields -SpecFieldCount $specFieldCount
+                    Write-ImportLogVerbose "CLI: User selected action: $action" -EnableVerbose:$Verbose
+
                     if ($action -eq "Exit") {
                         Write-Host "Import cancelled by user." -ForegroundColor Red
                         exit 0
@@ -303,15 +311,21 @@ try {
                     elseif ($action -eq "Skip") {
                         $skipFirstField = $true
                         Write-Host "Will skip first field for this table" -ForegroundColor Green
+                        Write-ImportLogVerbose "CLI: Setting skipFirstField = true for this table" -EnableVerbose:$Verbose
                     }
                     elseif ($action -eq "Always") {
                         $alwaysSkipFirst = $true
                         $skipFirstField = $true
                         Write-Host "Will skip first field for all remaining tables" -ForegroundColor Green
+                        Write-ImportLogVerbose "CLI: Setting alwaysSkipFirst = true for all remaining tables" -EnableVerbose:$Verbose
                     }
+                } else {
+                    Write-ImportLogVerbose "CLI: No field mismatch detected" -EnableVerbose:$Verbose
                 }
             }
         }
+
+        Write-ImportLogVerbose "CLI: Final skipFirstField value: $skipFirstField" -EnableVerbose:$Verbose
 
         # Import data with fallback
         try {
