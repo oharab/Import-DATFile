@@ -311,8 +311,8 @@ function New-DatabaseTable {
     $fieldDefinitions = @()
 
     foreach ($field in $Fields) {
-        $sqlType = Get-SqlDataTypeMapping -ExcelType $field."Field type" -Precision $field.Precision
-        $fieldDef = "    [$($field.'Field name')] $sqlType"
+        $sqlType = Get-SqlDataTypeMapping -ExcelType $field."Data type" -Precision $field.Precision
+        $fieldDef = "    [$($field.'Column name')] $sqlType"
         $fieldDefinitions += $fieldDef
         Write-ImportLogVerbose "Field definition: $fieldDef" -EnableVerbose:$EnableVerbose
     }
@@ -438,10 +438,10 @@ function Import-DataFileBulk {
 
     foreach ($field in $Fields) {
         $column = New-Object System.Data.DataColumn
-        $column.ColumnName = $field.'Field name'
+        $column.ColumnName = $field.'Column name'
 
         # Map SQL types to .NET types for DataTable
-        $sqlType = Get-SqlDataTypeMapping -ExcelType $field."Field type" -Precision $field.Precision
+        $sqlType = Get-SqlDataTypeMapping -ExcelType $field."Data type" -Precision $field.Precision
         switch -Regex ($sqlType.ToUpper()) {
             "^INT" { $column.DataType = [System.Int32] }
             "^BIGINT" { $column.DataType = [System.Int64] }
@@ -456,7 +456,7 @@ function Import-DataFileBulk {
         }
 
         $dataTable.Columns.Add($column)
-        Write-ImportLogVerbose "Added column: $($field.'Field name') as $($column.DataType)" -EnableVerbose:$EnableVerbose
+        Write-ImportLogVerbose "Added column: $($field.'Column name') as $($column.DataType)" -EnableVerbose:$EnableVerbose
     }
 
     # Populate DataTable with data
@@ -481,7 +481,7 @@ function Import-DataFileBulk {
 
         for ($i = 0; $i -lt [Math]::Min($values.Length, $Fields.Count); $i++) {
             $value = $values[$i].Trim()
-            $fieldName = $Fields[$i].'Field name'
+            $fieldName = $Fields[$i].'Column name'
 
             if ([string]::IsNullOrEmpty($value) -or $value -eq "NULL") {
                 $dataRow[$fieldName] = [DBNull]::Value
@@ -552,7 +552,7 @@ function Import-DataFileBulk {
 
         # Map columns
         foreach ($field in $Fields) {
-            $bulkCopy.ColumnMappings.Add($field.'Field name', $field.'Field name') | Out-Null
+            $bulkCopy.ColumnMappings.Add($field.'Column name', $field.'Column name') | Out-Null
         }
 
         Write-ImportLogVerbose "Starting SqlBulkCopy operation with batch size: $($bulkCopy.BatchSize)" -EnableVerbose:$EnableVerbose
@@ -617,7 +617,7 @@ function Import-DataFileStandard {
         return 0
     }
 
-    $fieldNames = $Fields.'Field name' -join "], ["
+    $fieldNames = $Fields.'Column name' -join "], ["
     $insertQuery = "INSERT INTO [$SchemaName].[$TableName] ([$fieldNames]) VALUES "
 
     $batchSize = 1000

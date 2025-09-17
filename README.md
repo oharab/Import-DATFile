@@ -42,8 +42,8 @@ your-data-folder/
 ### Excel Specification Format
 Your Excel file should contain these columns:
 - **Table name**: Target SQL table name (e.g., "Employee", "Department")
-- **Field name**: Column name in the table
-- **Field type**: SQL data type (VARCHAR, INT, DATETIME, etc.)
+- **Column name**: Column name in the table
+- **Data type**: SQL data type (VARCHAR, INT, DATETIME, etc.)
 - **Precision**: Optional size/precision (e.g., "50" for VARCHAR(50))
 
 ## ✨ Key Features
