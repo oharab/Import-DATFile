@@ -229,13 +229,16 @@ function Test-TableExists {
 
     # Use parameterized query to prevent SQL injection
     $query = @"
+DECLARE @SchemaName VARCHAR(255)='$SchemaName';
+DECLARE @TableName VARCHAR(255)='$TableName';
+
 SELECT COUNT(*)
 FROM INFORMATION_SCHEMA.TABLES
 WHERE TABLE_SCHEMA = @SchemaName AND TABLE_NAME = @TableName
 "@
 
     try {
-        $result = Invoke-Sqlcmd -ConnectionString $ConnectionString -Query $query -Variable @("SchemaName='$SchemaName'", "TableName='$TableName'") -ErrorAction Stop
+        $result = Invoke-Sqlcmd -ConnectionString $ConnectionString -Query $query -ErrorAction Stop
         $exists = $result.Column1 -gt 0
         Write-ImportLogVerbose "Table [$SchemaName].[$TableName] exists: $exists" -EnableVerbose:$EnableVerbose
         return $exists
@@ -266,6 +269,8 @@ function New-DatabaseSchema {
 
     # Use quoted identifier to safely include schema name
     $query = @"
+DECLARE @SchemaName VARCHAR(255)='$SchemaName';
+
 IF NOT EXISTS (SELECT * FROM sys.schemas WHERE name = @SchemaName)
 BEGIN
     DECLARE @sql NVARCHAR(MAX) = 'CREATE SCHEMA [' + @SchemaName + ']'
@@ -280,7 +285,7 @@ END
 
     Write-ImportLogVerbose "Executing schema creation query for: $SchemaName" -EnableVerbose:$EnableVerbose
     try {
-        Invoke-Sqlcmd -ConnectionString $ConnectionString -Query $query -Variable @("SchemaName='$SchemaName'") -ErrorAction Stop
+        Invoke-Sqlcmd -ConnectionString $ConnectionString -Query $query -ErrorAction Stop
         Write-Host "Schema '$SchemaName' is ready" -ForegroundColor Green
         Write-ImportLog "Schema '$SchemaName' is ready" -Level "SUCCESS"
     }
