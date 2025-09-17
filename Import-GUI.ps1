@@ -439,6 +439,11 @@ function Show-ImportGUI {
                 Import-Module SqlServer -Force
                 Import-Module ImportExcel -Force
 
+                # Initialize log file early if verbose logging is enabled
+                if ($EnableVerbose) {
+                    Initialize-ImportLog -DataFolder $DataFolder -EnableVerbose:$EnableVerbose
+                }
+
                 # Execute the import
                 $result = Invoke-SqlServerDataImport -DataFolder $DataFolder -ExcelSpecFile $ExcelSpecFile -ConnectionString $ConnectionString -SchemaName $SchemaName -TableExistsAction $TableAction -FieldMismatchAction $FieldAction -EnableVerbose:$EnableVerbose
 

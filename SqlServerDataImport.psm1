@@ -524,7 +524,7 @@ function Import-DataFileBulk {
             $value = $values[$i].Trim()
             $fieldName = $Fields[$i].'Column name'
 
-            Write-ImportLogVerbose "  Field $i: '$fieldName' = '$value'" -EnableVerbose:$EnableVerbose
+            Write-ImportLogVerbose "  Field ${i}: '$fieldName' = '$value'" -EnableVerbose:$EnableVerbose
 
             if ([string]::IsNullOrEmpty($value) -or $value -eq "NULL") {
                 $dataRow[$fieldName] = [DBNull]::Value

@@ -185,6 +185,7 @@ Write-Host "=== SQL Server Data Import Script ===" -ForegroundColor Cyan
 Write-ImportLog "Starting SQL Server Data Import Script" -Level "INFO"
 Write-ImportLog "Verbose logging enabled: $Verbose" -Level "INFO"
 
+
 try {
     # Get DataFolder and ExcelSpecFile if not provided as parameters
     if ([string]::IsNullOrWhiteSpace($DataFolder) -or [string]::IsNullOrWhiteSpace($ExcelSpecFile)) {
@@ -204,6 +205,11 @@ try {
     Write-Host "`nUsing configuration:" -ForegroundColor Green
     Write-Host "Data Folder: $DataFolder"
     Write-Host "Excel Spec File: $ExcelSpecFile"
+
+    # Initialize log file now that we have the data folder
+    if ($Verbose) {
+        Initialize-ImportLog -DataFolder $DataFolder -EnableVerbose:$Verbose
+    }
 
     # Get database connection
     $connectionString = Get-DatabaseConnection
