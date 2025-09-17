@@ -534,40 +534,84 @@ function Import-DataFileBulk {
                     # Convert value to appropriate type
                     $column = $dataTable.Columns[$fieldName]
                     if ($column.DataType -eq [System.Boolean]) {
-                        $dataRow[$fieldName] = [System.Convert]::ToBoolean($value)
+                        if ($value -match '^(true|false|1|0|yes|no)$') {
+                            $dataRow[$fieldName] = [System.Convert]::ToBoolean($value)
+                        } else {
+                            $dataRow[$fieldName] = [DBNull]::Value
+                        }
                     }
                     elseif ($column.DataType -eq [System.DateTime]) {
-                        $dataRow[$fieldName] = [System.DateTime]::Parse($value)
+                        $dateValue = $null
+                        if ([System.DateTime]::TryParse($value, [ref]$dateValue)) {
+                            $dataRow[$fieldName] = $dateValue
+                        } else {
+                            $dataRow[$fieldName] = [DBNull]::Value
+                        }
                     }
                     elseif ($column.DataType -eq [System.Decimal]) {
-                        $dataRow[$fieldName] = [System.Decimal]::Parse($value)
+                        $decimalValue = 0
+                        if ([System.Decimal]::TryParse($value, [ref]$decimalValue)) {
+                            $dataRow[$fieldName] = $decimalValue
+                        } else {
+                            $dataRow[$fieldName] = [DBNull]::Value
+                        }
                     }
                     elseif ($column.DataType -eq [System.Double]) {
-                        $dataRow[$fieldName] = [System.Double]::Parse($value)
+                        $doubleValue = 0.0
+                        if ([System.Double]::TryParse($value, [ref]$doubleValue)) {
+                            $dataRow[$fieldName] = $doubleValue
+                        } else {
+                            $dataRow[$fieldName] = [DBNull]::Value
+                        }
                     }
                     elseif ($column.DataType -eq [System.Single]) {
-                        $dataRow[$fieldName] = [System.Single]::Parse($value)
+                        $singleValue = 0.0
+                        if ([System.Single]::TryParse($value, [ref]$singleValue)) {
+                            $dataRow[$fieldName] = $singleValue
+                        } else {
+                            $dataRow[$fieldName] = [DBNull]::Value
+                        }
                     }
                     elseif ($column.DataType -eq [System.Int64]) {
-                        $dataRow[$fieldName] = [System.Int64]::Parse($value)
+                        $int64Value = 0
+                        if ([System.Int64]::TryParse($value, [ref]$int64Value)) {
+                            $dataRow[$fieldName] = $int64Value
+                        } else {
+                            $dataRow[$fieldName] = [DBNull]::Value
+                        }
                     }
                     elseif ($column.DataType -eq [System.Int32]) {
-                        $dataRow[$fieldName] = [System.Int32]::Parse($value)
+                        $int32Value = 0
+                        if ([System.Int32]::TryParse($value, [ref]$int32Value)) {
+                            $dataRow[$fieldName] = $int32Value
+                        } else {
+                            $dataRow[$fieldName] = [DBNull]::Value
+                        }
                     }
                     elseif ($column.DataType -eq [System.Int16]) {
-                        $dataRow[$fieldName] = [System.Int16]::Parse($value)
+                        $int16Value = 0
+                        if ([System.Int16]::TryParse($value, [ref]$int16Value)) {
+                            $dataRow[$fieldName] = $int16Value
+                        } else {
+                            $dataRow[$fieldName] = [DBNull]::Value
+                        }
                     }
                     elseif ($column.DataType -eq [System.Byte]) {
-                        $dataRow[$fieldName] = [System.Byte]::Parse($value)
+                        $byteValue = 0
+                        if ([System.Byte]::TryParse($value, [ref]$byteValue)) {
+                            $dataRow[$fieldName] = $byteValue
+                        } else {
+                            $dataRow[$fieldName] = [DBNull]::Value
+                        }
                     }
                     else {
                         $dataRow[$fieldName] = $value
                     }
                 }
                 catch {
-                    # If conversion fails, store as string
-                    Write-ImportLogVerbose "Type conversion failed for $fieldName, using string value: $($_.Exception.Message)" -EnableVerbose:$EnableVerbose
-                    $dataRow[$fieldName] = $value
+                    # If conversion fails, use DBNull
+                    Write-ImportLogVerbose "Type conversion failed for $fieldName ('$value'), using NULL: $($_.Exception.Message)" -EnableVerbose:$EnableVerbose
+                    $dataRow[$fieldName] = [DBNull]::Value
                 }
             }
         }
@@ -679,6 +723,13 @@ function Import-DataFileStandard {
             $originalCount = $values.Length
             $values = $values[1..($values.Length - 1)]
             Write-ImportLogVerbose "Skipped first field - Original: $originalCount, After skip: $($values.Length)" -EnableVerbose:$EnableVerbose
+        }
+
+        # Validate field count matches expected columns
+        if ($values.Length -ne $Fields.Count) {
+            Write-ImportLogVerbose "WARNING: Row has $($values.Length) fields but table expects $($Fields.Count) fields. Skipping row." -EnableVerbose:$EnableVerbose
+            Write-ImportLog "Skipping row with mismatched field count: Expected $($Fields.Count), got $($values.Length)" -Level "WARNING"
+            continue
         }
 
         # Escape single quotes and handle nulls
