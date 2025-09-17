@@ -934,12 +934,12 @@ function Invoke-SqlServerDataImport {
             }
             elseif ($FieldMismatchAction -eq "Ask") {
                 # Check field count
-                $testLines = Get-Content -Path $datFile.FullName -TotalCount 1
-                if ($testLines.Count -gt 0) {
-                    $firstLineFields = ($testLines[0] -split '\|').Count
+                $testLine = Get-Content -Path $datFile.FullName -TotalCount 1
+                if ($testLine) {
+                    $firstLineFields = ($testLine -split '\|').Count
                     $specFieldCount = $tableFields.Count
                     Write-ImportLogVerbose "Field count comparison - DAT file: $firstLineFields, Excel spec: $specFieldCount" -EnableVerbose:$EnableVerbose
-                    Write-ImportLogVerbose "First line of DAT file: '$($testLines[0])'" -EnableVerbose:$EnableVerbose
+                    Write-ImportLogVerbose "First line of DAT file: '$testLine'" -EnableVerbose:$EnableVerbose
                     if ($firstLineFields -eq ($specFieldCount + 1)) {
                         $skipFirstField = $true
                         Write-Host "Auto-detected field mismatch - skipping first field" -ForegroundColor Green

@@ -292,12 +292,12 @@ try {
         Write-ImportLogVerbose "CLI: alwaysSkipFirst = $alwaysSkipFirst" -EnableVerbose:$Verbose
 
         if (-not $alwaysSkipFirst) {
-            $testLines = Get-Content -Path $datFile.FullName -TotalCount 1
-            if ($testLines.Count -gt 0) {
-                $firstLineFields = ($testLines[0] -split '\|').Count
+            $testLine = Get-Content -Path $datFile.FullName -TotalCount 1
+            if ($testLine) {
+                $firstLineFields = ($testLine -split '\|').Count
                 $specFieldCount = $tableFields.Count
                 Write-ImportLogVerbose "CLI: Field count comparison - DAT file: $firstLineFields, Excel spec: $specFieldCount" -EnableVerbose:$Verbose
-                Write-ImportLogVerbose "CLI: First line of DAT file: '$($testLines[0])'" -EnableVerbose:$Verbose
+                Write-ImportLogVerbose "CLI: First line of DAT file: '$testLine'" -EnableVerbose:$Verbose
 
                 if ($firstLineFields -eq ($specFieldCount + 1)) {
                     Write-ImportLogVerbose "CLI: Field mismatch detected - prompting user" -EnableVerbose:$Verbose
