@@ -136,8 +136,17 @@ function Get-DataPrefix {
         throw "Cannot uniquely determine prefix. Multiple Employee.dat files found."
     }
 
-    $employeeFile = $employeeFiles[0]
-    $prefix = $employeeFile -replace "Employee\.dat$", ""
+    # Get the first (and only) employee file
+    if ($employeeFiles -is [array]) {
+        $employeeFile = $employeeFiles[0]
+    } else {
+        $employeeFile = $employeeFiles
+    }
+    Write-ImportLogVerbose "Raw employee filename: '$employeeFile'" -EnableVerbose:$EnableVerbose
+
+    # Extract prefix by removing "Employee.dat" from the end (case-insensitive)
+    $prefix = $employeeFile -replace "(?i)Employee\.dat$", ""
+    Write-ImportLogVerbose "Prefix after regex replacement: '$prefix' (length: $($prefix.Length))" -EnableVerbose:$EnableVerbose
 
     Write-Host "Found: $employeeFile" -ForegroundColor Green
     Write-Host "Detected prefix: '$prefix'" -ForegroundColor Green
@@ -919,11 +928,16 @@ Export-ModuleMember -Function @(
     'Invoke-SqlServerDataImport',
     'Get-DataPrefix',
     'Get-TableSpecifications',
+    'Get-SqlDataTypeMapping',
     'Test-DatabaseConnection',
+    'Test-TableExists',
     'New-DatabaseSchema',
     'New-DatabaseTable',
+    'Remove-DatabaseTable',
+    'Clear-DatabaseTable',
     'Import-DataFileBulk',
     'Import-DataFileStandard',
+    'Add-ImportSummary',
     'Show-ImportSummary',
     'Clear-ImportSummary',
     'Write-ImportLog',

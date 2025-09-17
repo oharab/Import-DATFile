@@ -374,7 +374,6 @@ function Show-ImportGUI {
         if ($authComboBox.SelectedIndex -eq 1) {
             # Use SecureString for password to avoid plaintext storage
             $securePassword = ConvertTo-SecureString $passwordTextBox.Text -AsPlainText -Force
-            $credential = New-Object System.Management.Automation.PSCredential($usernameTextBox.Text, $securePassword)
             $BSTR = [System.Runtime.InteropServices.Marshal]::SecureStringToBSTR($securePassword)
             $password = [System.Runtime.InteropServices.Marshal]::PtrToStringAuto($BSTR)
             $connectionString = "Server=$($serverTextBox.Text);Database=$($databaseTextBox.Text);User Id=$($usernameTextBox.Text);Password=$password;"
