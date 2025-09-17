@@ -4,6 +4,7 @@
 # Global variables
 $script:AlwaysSkipFirstField = $false
 $script:ImportSummary = @()
+$script:LogFilePath = $null
 
 #region Logging Functions
 
@@ -26,6 +27,7 @@ function Write-ImportLog {
         return
     }
 
+    # Write to console
     switch ($Level.ToUpper()) {
         "ERROR" { Write-Host $logMessage -ForegroundColor Red }
         "WARNING" { Write-Host $logMessage -ForegroundColor Yellow }
@@ -38,6 +40,16 @@ function Write-ImportLog {
         }
         default { Write-Host $logMessage -ForegroundColor White }
     }
+
+    # Write to log file if path is set
+    if ($script:LogFilePath) {
+        try {
+            Add-Content -Path $script:LogFilePath -Value $logMessage -ErrorAction SilentlyContinue
+        }
+        catch {
+            # Silently ignore log file errors to prevent breaking the import
+        }
+    }
 }
 
 function Write-ImportLogVerbose {
@@ -48,6 +60,25 @@ function Write-ImportLogVerbose {
         [switch]$EnableVerbose = $false
     )
     Write-ImportLog -Message $Message -Level "VERBOSE" -VerboseOnly -EnableVerbose:$EnableVerbose
+}
+
+function Initialize-ImportLog {
+    param(
+        [Parameter(Mandatory=$true)]
+        [string]$DataFolder,
+
+        [switch]$EnableVerbose = $false
+    )
+
+    if ($EnableVerbose) {
+        $timestamp = Get-Date -Format "yyyyMMdd_HHmmss"
+        $script:LogFilePath = Join-Path $DataFolder "SqlServerImport_$timestamp.log"
+
+        # Create initial log entry
+        $initialMessage = "=== SQL Server Data Import Log Started ==="
+        Add-Content -Path $script:LogFilePath -Value $initialMessage
+        Write-ImportLog "Log file created: $($script:LogFilePath)" -Level "INFO" -EnableVerbose:$EnableVerbose
+    }
 }
 
 #endregion
@@ -472,21 +503,28 @@ function Import-DataFileBulk {
         if ([string]::IsNullOrWhiteSpace($line)) { continue }
 
         $values = $line -split '\|'
-        Write-ImportLogVerbose "Processing line with $($values.Length) fields" -EnableVerbose:$EnableVerbose
+        Write-ImportLogVerbose "Raw line: '$line'" -EnableVerbose:$EnableVerbose
+        Write-ImportLogVerbose "Split into $($values.Length) fields: [$($values -join '], [')]" -EnableVerbose:$EnableVerbose
 
         # Skip first field if determined necessary
         if ($SkipFirstField -and $values.Length -gt 0) {
             $originalCount = $values.Length
+            $skippedField = $values[0]
             $values = $values[1..($values.Length - 1)]
-            Write-ImportLogVerbose "Skipped first field - Original: $originalCount, After skip: $($values.Length)" -EnableVerbose:$EnableVerbose
+            Write-ImportLogVerbose "Skipped first field '$skippedField' - Original: $originalCount, After skip: $($values.Length)" -EnableVerbose:$EnableVerbose
+            Write-ImportLogVerbose "Remaining fields: [$($values -join '], [')]" -EnableVerbose:$EnableVerbose
         }
 
         # Create DataRow and populate with values
         $dataRow = $dataTable.NewRow()
 
+        Write-ImportLogVerbose "Processing row - Values count: $($values.Length), Fields count: $($Fields.Count), SkipFirstField: $SkipFirstField" -EnableVerbose:$EnableVerbose
+
         for ($i = 0; $i -lt [Math]::Min($values.Length, $Fields.Count); $i++) {
             $value = $values[$i].Trim()
             $fieldName = $Fields[$i].'Column name'
+
+            Write-ImportLogVerbose "  Field $i: '$fieldName' = '$value'" -EnableVerbose:$EnableVerbose
 
             if ([string]::IsNullOrEmpty($value) -or $value -eq "NULL") {
                 $dataRow[$fieldName] = [DBNull]::Value
@@ -805,6 +843,9 @@ function Invoke-SqlServerDataImport {
     # Clear previous summary
     Clear-ImportSummary
 
+    # Initialize log file if verbose logging is enabled
+    Initialize-ImportLog -DataFolder $DataFolder -EnableVerbose:$EnableVerbose
+
     try {
         Write-ImportLog "Starting SQL Server data import" -Level "INFO" -EnableVerbose:$EnableVerbose
 
@@ -885,8 +926,11 @@ function Invoke-SqlServerDataImport {
 
             # Determine if we need to skip first field
             $skipFirstField = $false
+            Write-ImportLogVerbose "Field mismatch action: $FieldMismatchAction" -EnableVerbose:$EnableVerbose
+
             if ($FieldMismatchAction -eq "Skip") {
                 $skipFirstField = $true
+                Write-ImportLogVerbose "Setting skipFirstField = true due to FieldMismatchAction = Skip" -EnableVerbose:$EnableVerbose
             }
             elseif ($FieldMismatchAction -eq "Ask") {
                 # Check field count
@@ -894,12 +938,19 @@ function Invoke-SqlServerDataImport {
                 if ($testLines.Count -gt 0) {
                     $firstLineFields = ($testLines[0] -split '\|').Count
                     $specFieldCount = $tableFields.Count
+                    Write-ImportLogVerbose "Field count comparison - DAT file: $firstLineFields, Excel spec: $specFieldCount" -EnableVerbose:$EnableVerbose
+                    Write-ImportLogVerbose "First line of DAT file: '$($testLines[0])'" -EnableVerbose:$EnableVerbose
                     if ($firstLineFields -eq ($specFieldCount + 1)) {
                         $skipFirstField = $true
                         Write-Host "Auto-detected field mismatch - skipping first field" -ForegroundColor Green
+                        Write-ImportLogVerbose "Auto-detected field mismatch - setting skipFirstField = true" -EnableVerbose:$EnableVerbose
+                    } else {
+                        Write-ImportLogVerbose "No field mismatch detected - keeping skipFirstField = false" -EnableVerbose:$EnableVerbose
                     }
                 }
             }
+
+            Write-ImportLogVerbose "Final skipFirstField value: $skipFirstField" -EnableVerbose:$EnableVerbose
 
             # Import data with fallback
             try {
@@ -918,10 +969,22 @@ function Invoke-SqlServerDataImport {
         Show-ImportSummary -SchemaName $SchemaName -EnableVerbose:$EnableVerbose
 
         Write-ImportLog "Import process completed successfully" -Level "SUCCESS"
+
+        # Log completion message with log file location
+        if ($script:LogFilePath -and $EnableVerbose) {
+            Write-ImportLog "=== Import completed. Detailed log saved to: $($script:LogFilePath) ===" -Level "INFO" -EnableVerbose:$EnableVerbose
+        }
+
         return $script:ImportSummary
     }
     catch {
         Write-ImportLog "Import process failed: $($_.Exception.Message)" -Level "ERROR"
+
+        # Log failure message with log file location
+        if ($script:LogFilePath -and $EnableVerbose) {
+            Write-ImportLog "=== Import failed. Error details in log: $($script:LogFilePath) ===" -Level "ERROR" -EnableVerbose:$EnableVerbose
+        }
+
         throw
     }
 }
@@ -946,5 +1009,6 @@ Export-ModuleMember -Function @(
     'Show-ImportSummary',
     'Clear-ImportSummary',
     'Write-ImportLog',
-    'Write-ImportLogVerbose'
+    'Write-ImportLogVerbose',
+    'Initialize-ImportLog'
 )

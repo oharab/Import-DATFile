@@ -8,9 +8,12 @@ This is a PowerShell-based data import utility that reads pipe-separated .dat fi
 
 ## Core Architecture
 
-### Single Script Design
-- **Import-DATFile.ps1**: Main script containing all functionality
-- Self-contained with no external PowerShell modules beyond SqlServer and ImportExcel
+### Modular Design
+- **SqlServerDataImport.psm1**: Core PowerShell module with all import logic
+- **Import-CLI.ps1**: Interactive command-line interface
+- **Import-GUI.ps1**: Windows Forms graphical interface
+- **Launch-Import-GUI.bat**: One-click launcher for GUI
+- Self-contained with only SqlServer and ImportExcel module dependencies
 
 ### Key Components
 1. **Prefix Detection**: Automatically detects file prefix by finding `*Employee.dat` file
@@ -29,9 +32,18 @@ This is a PowerShell-based data import utility that reads pipe-separated .dat fi
 
 ## Running the Script
 
-### Basic Execution (Interactive Mode)
+### GUI Execution (Recommended)
+```batch
+Launch-Import-GUI.bat
+```
+Or directly:
 ```powershell
-.\Import-DATFile.ps1
+.\Import-GUI.ps1
+```
+
+### CLI Execution (Interactive Mode)
+```powershell
+.\Import-CLI.ps1
 ```
 When run without parameters, the script prompts for:
 - **Data Folder**: Defaults to current location (Get-Location)
@@ -39,13 +51,13 @@ When run without parameters, the script prompts for:
 
 ### With Parameters
 ```powershell
-.\Import-DATFile.ps1 -DataFolder "C:\path\to\data" -ExcelSpecFile "CustomSpec.xlsx"
+.\Import-CLI.ps1 -DataFolder "C:\path\to\data" -ExcelSpecFile "CustomSpec.xlsx"
 ```
 
 ### With Verbose Logging
 ```powershell
-.\Import-DATFile.ps1 -Verbose
-.\Import-DATFile.ps1 -DataFolder "C:\path\to\data" -ExcelSpecFile "CustomSpec.xlsx" -Verbose
+.\Import-CLI.ps1 -Verbose
+.\Import-CLI.ps1 -DataFolder "C:\path\to\data" -ExcelSpecFile "CustomSpec.xlsx" -Verbose
 ```
 
 ### Prerequisites
@@ -64,8 +76,8 @@ Install-Module -Name ImportExcel
 ### Excel Specification Format
 Required columns in Excel file:
 - `Table name`: Target SQL table name
-- `Field name`: Column name
-- `Field type`: SQL data type
+- `Column name`: Column name
+- `Data type`: SQL data type
 - `Precision`: Type precision/length (optional)
 
 ## Data Type Mappings
