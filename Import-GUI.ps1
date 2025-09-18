@@ -1,5 +1,5 @@
-# SQL Server Data Import - Graphical User Interface
-# User-friendly Windows Forms interface using the SqlServerDataImport module
+# SQL Server Data Import - Optimized Graphical User Interface
+# User-friendly Windows Forms interface using the optimized SqlServerDataImport module
 
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
@@ -39,8 +39,8 @@ $global:ImportPowerShell = $null
 function Show-ImportGUI {
     # Create main form
     $form = New-Object System.Windows.Forms.Form
-    $form.Text = "SQL Server Data Import Utility"
-    $form.Size = New-Object System.Drawing.Size(620, 680)
+    $form.Text = "SQL Server Data Import Utility (Optimized)"
+    $form.Size = New-Object System.Drawing.Size(620, 700)
     $form.StartPosition = "CenterScreen"
     $form.FormBorderStyle = "FixedDialog"
     $form.MaximizeBox = $false
@@ -48,7 +48,7 @@ function Show-ImportGUI {
 
     # Title label
     $titleLabel = New-Object System.Windows.Forms.Label
-    $titleLabel.Text = "SQL Server Data Import Utility"
+    $titleLabel.Text = "SQL Server Data Import Utility (Optimized)"
     $titleLabel.Font = New-Object System.Drawing.Font("Segoe UI", 14, [System.Drawing.FontStyle]::Bold)
     $titleLabel.Size = New-Object System.Drawing.Size(580, 30)
     $titleLabel.Location = New-Object System.Drawing.Point(10, 10)
@@ -57,30 +57,51 @@ function Show-ImportGUI {
 
     # Subtitle label
     $subtitleLabel = New-Object System.Windows.Forms.Label
-    $subtitleLabel.Text = "Import pipe-separated .dat files into SQL Server using Excel specifications"
+    $subtitleLabel.Text = "Fast import with ImportID assumption - No fallbacks, SqlBulkCopy only"
     $subtitleLabel.Size = New-Object System.Drawing.Size(580, 20)
     $subtitleLabel.Location = New-Object System.Drawing.Point(10, 45)
     $subtitleLabel.TextAlign = "MiddleCenter"
     $subtitleLabel.ForeColor = [System.Drawing.Color]::DarkBlue
     $form.Controls.Add($subtitleLabel)
 
+    # Warning section
+    $warningGroupBox = New-Object System.Windows.Forms.GroupBox
+    $warningGroupBox.Text = "⚠️ IMPORTANT: Optimized Import Assumptions"
+    $warningGroupBox.Size = New-Object System.Drawing.Size(580, 90)
+    $warningGroupBox.Location = New-Object System.Drawing.Point(10, 75)
+    $warningGroupBox.ForeColor = [System.Drawing.Color]::DarkRed
+    $form.Controls.Add($warningGroupBox)
+
+    $warningLabel = New-Object System.Windows.Forms.Label
+    $warningLabel.Text = @"
+• Every data file MUST have ImportID as the first field
+• Field count MUST match exactly: ImportID + specification fields
+• Import FAILS immediately if field counts don't match (shows problematic line)
+• Only SqlBulkCopy is used - no fallback to INSERT statements
+• No file logging for maximum speed - console output only
+"@
+    $warningLabel.Size = New-Object System.Drawing.Size(560, 65)
+    $warningLabel.Location = New-Object System.Drawing.Point(10, 15)
+    $warningLabel.ForeColor = [System.Drawing.Color]::DarkRed
+    $warningGroupBox.Controls.Add($warningLabel)
+
     # Data folder section
     $dataFolderLabel = New-Object System.Windows.Forms.Label
     $dataFolderLabel.Text = "Data Folder:"
     $dataFolderLabel.Size = New-Object System.Drawing.Size(100, 20)
-    $dataFolderLabel.Location = New-Object System.Drawing.Point(20, 85)
+    $dataFolderLabel.Location = New-Object System.Drawing.Point(20, 185)
     $form.Controls.Add($dataFolderLabel)
 
     $dataFolderTextBox = New-Object System.Windows.Forms.TextBox
     $dataFolderTextBox.Size = New-Object System.Drawing.Size(380, 20)
-    $dataFolderTextBox.Location = New-Object System.Drawing.Point(20, 105)
+    $dataFolderTextBox.Location = New-Object System.Drawing.Point(20, 205)
     $dataFolderTextBox.Text = (Get-Location).Path
     $form.Controls.Add($dataFolderTextBox)
 
     $dataFolderButton = New-Object System.Windows.Forms.Button
     $dataFolderButton.Text = "Browse..."
     $dataFolderButton.Size = New-Object System.Drawing.Size(80, 25)
-    $dataFolderButton.Location = New-Object System.Drawing.Point(410, 103)
+    $dataFolderButton.Location = New-Object System.Drawing.Point(410, 203)
     $dataFolderButton.Add_Click({
         $folderDialog = New-Object System.Windows.Forms.FolderBrowserDialog
         $folderDialog.Description = "Select folder containing .dat files"
@@ -95,19 +116,19 @@ function Show-ImportGUI {
     $excelLabel = New-Object System.Windows.Forms.Label
     $excelLabel.Text = "Excel Specification File:"
     $excelLabel.Size = New-Object System.Drawing.Size(150, 20)
-    $excelLabel.Location = New-Object System.Drawing.Point(20, 140)
+    $excelLabel.Location = New-Object System.Drawing.Point(20, 240)
     $form.Controls.Add($excelLabel)
 
     $excelTextBox = New-Object System.Windows.Forms.TextBox
     $excelTextBox.Size = New-Object System.Drawing.Size(380, 20)
-    $excelTextBox.Location = New-Object System.Drawing.Point(20, 160)
+    $excelTextBox.Location = New-Object System.Drawing.Point(20, 260)
     $excelTextBox.Text = "ExportSpec.xlsx"
     $form.Controls.Add($excelTextBox)
 
     $excelButton = New-Object System.Windows.Forms.Button
     $excelButton.Text = "Browse..."
     $excelButton.Size = New-Object System.Drawing.Size(80, 25)
-    $excelButton.Location = New-Object System.Drawing.Point(410, 158)
+    $excelButton.Location = New-Object System.Drawing.Point(410, 258)
     $excelButton.Add_Click({
         $fileDialog = New-Object System.Windows.Forms.OpenFileDialog
         $fileDialog.Filter = "Excel files (*.xlsx;*.xls)|*.xlsx;*.xls|All files (*.*)|*.*"
@@ -126,7 +147,7 @@ function Show-ImportGUI {
     $dbGroupBox = New-Object System.Windows.Forms.GroupBox
     $dbGroupBox.Text = "Database Connection"
     $dbGroupBox.Size = New-Object System.Drawing.Size(470, 120)
-    $dbGroupBox.Location = New-Object System.Drawing.Point(20, 195)
+    $dbGroupBox.Location = New-Object System.Drawing.Point(20, 295)
     $form.Controls.Add($dbGroupBox)
 
     # Server
@@ -211,12 +232,12 @@ function Show-ImportGUI {
     $schemaLabel = New-Object System.Windows.Forms.Label
     $schemaLabel.Text = "Schema Name (optional - defaults to detected prefix):"
     $schemaLabel.Size = New-Object System.Drawing.Size(300, 20)
-    $schemaLabel.Location = New-Object System.Drawing.Point(20, 325)
+    $schemaLabel.Location = New-Object System.Drawing.Point(20, 425)
     $form.Controls.Add($schemaLabel)
 
     $schemaTextBox = New-Object System.Windows.Forms.TextBox
     $schemaTextBox.Size = New-Object System.Drawing.Size(380, 20)
-    $schemaTextBox.Location = New-Object System.Drawing.Point(20, 345)
+    $schemaTextBox.Location = New-Object System.Drawing.Point(20, 445)
     $schemaTextBox.ForeColor = [System.Drawing.Color]::Gray
     $schemaTextBox.Text = "Leave empty to use detected prefix"
     $form.Controls.Add($schemaTextBox)
@@ -235,11 +256,11 @@ function Show-ImportGUI {
         }
     })
 
-    # Options section
+    # Options section (simplified)
     $optionsGroupBox = New-Object System.Windows.Forms.GroupBox
     $optionsGroupBox.Text = "Import Options"
-    $optionsGroupBox.Size = New-Object System.Drawing.Size(470, 90)
-    $optionsGroupBox.Location = New-Object System.Drawing.Point(20, 375)
+    $optionsGroupBox.Size = New-Object System.Drawing.Size(470, 60)
+    $optionsGroupBox.Location = New-Object System.Drawing.Point(20, 475)
     $form.Controls.Add($optionsGroupBox)
 
     # Table exists action
@@ -257,37 +278,25 @@ function Show-ImportGUI {
     $tableActionComboBox.SelectedIndex = 0
     $optionsGroupBox.Controls.Add($tableActionComboBox)
 
-    # Field mismatch action
-    $fieldActionLabel = New-Object System.Windows.Forms.Label
-    $fieldActionLabel.Text = "Field mismatch:"
-    $fieldActionLabel.Size = New-Object System.Drawing.Size(100, 20)
-    $fieldActionLabel.Location = New-Object System.Drawing.Point(245, 25)
-    $optionsGroupBox.Controls.Add($fieldActionLabel)
-
-    $fieldActionComboBox = New-Object System.Windows.Forms.ComboBox
-    $fieldActionComboBox.Size = New-Object System.Drawing.Size(120, 25)
-    $fieldActionComboBox.Location = New-Object System.Drawing.Point(340, 23)
-    $fieldActionComboBox.DropDownStyle = "DropDownList"
-    $fieldActionComboBox.Items.AddRange(@("Skip first field", "Exit import"))
-    $fieldActionComboBox.SelectedIndex = 0
-    $optionsGroupBox.Controls.Add($fieldActionComboBox)
-
-    $verboseCheckBox = New-Object System.Windows.Forms.CheckBox
-    $verboseCheckBox.Text = "Enable verbose logging (recommended for troubleshooting)"
-    $verboseCheckBox.Size = New-Object System.Drawing.Size(450, 20)
-    $verboseCheckBox.Location = New-Object System.Drawing.Point(10, 55)
-    $optionsGroupBox.Controls.Add($verboseCheckBox)
+    # Note about removed options
+    $removedLabel = New-Object System.Windows.Forms.Label
+    $removedLabel.Text = "Note: Field mismatch handling and verbose logging removed for performance"
+    $removedLabel.Size = New-Object System.Drawing.Size(320, 20)
+    $removedLabel.Location = New-Object System.Drawing.Point(245, 25)
+    $removedLabel.ForeColor = [System.Drawing.Color]::Gray
+    $removedLabel.Font = New-Object System.Drawing.Font("Segoe UI", 8)
+    $optionsGroupBox.Controls.Add($removedLabel)
 
     # Progress section
     $progressLabel = New-Object System.Windows.Forms.Label
     $progressLabel.Text = "Ready to import..."
     $progressLabel.Size = New-Object System.Drawing.Size(470, 20)
-    $progressLabel.Location = New-Object System.Drawing.Point(20, 475)
+    $progressLabel.Location = New-Object System.Drawing.Point(20, 545)
     $form.Controls.Add($progressLabel)
 
     $progressBar = New-Object System.Windows.Forms.ProgressBar
     $progressBar.Size = New-Object System.Drawing.Size(470, 23)
-    $progressBar.Location = New-Object System.Drawing.Point(20, 500)
+    $progressBar.Location = New-Object System.Drawing.Point(20, 570)
     $progressBar.Style = "Marquee"
     $progressBar.MarqueeAnimationSpeed = 0
     $form.Controls.Add($progressBar)
@@ -297,7 +306,7 @@ function Show-ImportGUI {
     $outputTextBox.Multiline = $true
     $outputTextBox.ScrollBars = "Vertical"
     $outputTextBox.Size = New-Object System.Drawing.Size(470, 80)
-    $outputTextBox.Location = New-Object System.Drawing.Point(20, 530)
+    $outputTextBox.Location = New-Object System.Drawing.Point(20, 600)
     $outputTextBox.ReadOnly = $true
     $outputTextBox.BackColor = [System.Drawing.Color]::Black
     $outputTextBox.ForeColor = [System.Drawing.Color]::Lime
@@ -308,7 +317,7 @@ function Show-ImportGUI {
     $startButton = New-Object System.Windows.Forms.Button
     $startButton.Text = "Start Import"
     $startButton.Size = New-Object System.Drawing.Size(100, 30)
-    $startButton.Location = New-Object System.Drawing.Point(500, 530)
+    $startButton.Location = New-Object System.Drawing.Point(500, 600)
     $startButton.BackColor = [System.Drawing.Color]::LightGreen
     $startButton.Font = New-Object System.Drawing.Font("Segoe UI", 9, [System.Drawing.FontStyle]::Bold)
     $form.Controls.Add($startButton)
@@ -316,14 +325,14 @@ function Show-ImportGUI {
     $cancelButton = New-Object System.Windows.Forms.Button
     $cancelButton.Text = "Cancel"
     $cancelButton.Size = New-Object System.Drawing.Size(100, 30)
-    $cancelButton.Location = New-Object System.Drawing.Point(500, 570)
+    $cancelButton.Location = New-Object System.Drawing.Point(500, 640)
     $cancelButton.Enabled = $false
     $form.Controls.Add($cancelButton)
 
     $exitButton = New-Object System.Windows.Forms.Button
     $exitButton.Text = "Exit"
     $exitButton.Size = New-Object System.Drawing.Size(100, 30)
-    $exitButton.Location = New-Object System.Drawing.Point(500, 610)
+    $exitButton.Location = New-Object System.Drawing.Point(500, 680)
     $exitButton.Add_Click({ $form.Close() })
     $form.Controls.Add($exitButton)
 
@@ -370,6 +379,22 @@ function Show-ImportGUI {
             }
         }
 
+        # Show confirmation of optimized assumptions
+        $confirmResult = [System.Windows.Forms.MessageBox]::Show(@"
+OPTIMIZED IMPORT ASSUMPTIONS:
+• Every data file MUST have ImportID as first field
+• Field count MUST match exactly (ImportID + spec fields)
+• Import will FAIL immediately on field mismatches
+• Only SqlBulkCopy (no INSERT fallback)
+• No file logging for maximum speed
+
+Do you want to continue with these assumptions?
+"@, "Confirm Optimized Import", "YesNo", "Question")
+
+        if ($confirmResult -eq "No") {
+            return
+        }
+
         # Build connection string (handle password securely)
         if ($authComboBox.SelectedIndex -eq 1) {
             # Use SecureString for password to avoid plaintext storage
@@ -385,7 +410,7 @@ function Show-ImportGUI {
 
         # Test connection first
         $outputTextBox.AppendText("Testing database connection...`r`n")
-        if (-not (Test-DatabaseConnection -ConnectionString $connectionString -EnableVerbose:$verboseCheckBox.Checked)) {
+        if (-not (Test-DatabaseConnection -ConnectionString $connectionString)) {
             $outputTextBox.AppendText("ERROR: Database connection failed!`r`n")
             [System.Windows.Forms.MessageBox]::Show("Database connection failed. Please check your connection details.", "Connection Error", "OK", "Error")
             return
@@ -397,12 +422,13 @@ function Show-ImportGUI {
         $startButton.Enabled = $false
         $cancelButton.Enabled = $true
         $progressBar.MarqueeAnimationSpeed = 30
-        $progressLabel.Text = "Import in progress..."
-        $outputTextBox.AppendText("Starting import process...`r`n")
+        $progressLabel.Text = "Optimized import in progress..."
+        $outputTextBox.AppendText("Starting optimized import process...`r`n")
 
         # Create a background runspace to execute the import
         $global:ImportRunspace = [runspacefactory]::CreateRunspace()
         $global:ImportRunspace.Open()
+
         # Determine schema name (handle placeholder text)
         $schemaName = if ([string]::IsNullOrWhiteSpace($schemaTextBox.Text) -or $schemaTextBox.Text -eq "Leave empty to use detected prefix") { $null } else { $schemaTextBox.Text.Trim() }
 
@@ -414,42 +440,29 @@ function Show-ImportGUI {
             default { "Recreate" }
         }
 
-        $fieldAction = switch ($fieldActionComboBox.SelectedIndex) {
-            0 { "Skip" }
-            1 { "Exit" }
-            default { "Skip" }
-        }
-
         $global:ImportRunspace.SessionStateProxy.SetVariable("DataFolder", $dataFolderTextBox.Text)
         $global:ImportRunspace.SessionStateProxy.SetVariable("ExcelSpecFile", $excelTextBox.Text)
         $global:ImportRunspace.SessionStateProxy.SetVariable("ConnectionString", $connectionString)
         $global:ImportRunspace.SessionStateProxy.SetVariable("SchemaName", $schemaName)
         $global:ImportRunspace.SessionStateProxy.SetVariable("TableAction", $tableAction)
-        $global:ImportRunspace.SessionStateProxy.SetVariable("FieldAction", $fieldAction)
-        $global:ImportRunspace.SessionStateProxy.SetVariable("EnableVerbose", $verboseCheckBox.Checked)
         $global:ImportRunspace.SessionStateProxy.SetVariable("ModulePath", $modulePath)
 
         $global:ImportPowerShell = [powershell]::Create()
         $global:ImportPowerShell.Runspace = $global:ImportRunspace
 
-        # Import script to run in background
+        # Import script to run in background (simplified for optimized version)
         $importScript = {
             try {
                 Import-Module $ModulePath -Force
                 Import-Module SqlServer -Force
                 Import-Module ImportExcel -Force
 
-                # Initialize log file early if verbose logging is enabled
-                if ($EnableVerbose) {
-                    Initialize-ImportLog -DataFolder $DataFolder -EnableVerbose:$EnableVerbose
-                }
-
-                # Execute the import
-                $result = Invoke-SqlServerDataImport -DataFolder $DataFolder -ExcelSpecFile $ExcelSpecFile -ConnectionString $ConnectionString -SchemaName $SchemaName -TableExistsAction $TableAction -FieldMismatchAction $FieldAction -EnableVerbose:$EnableVerbose
+                # Execute the optimized import
+                $result = Invoke-SqlServerDataImport -DataFolder $DataFolder -ExcelSpecFile $ExcelSpecFile -ConnectionString $ConnectionString -SchemaName $SchemaName -TableExistsAction $TableAction
 
                 return @{
                     Success = $true
-                    Message = "Import completed successfully"
+                    Message = "Optimized import completed successfully"
                     Summary = $result
                 }
             }
@@ -479,14 +492,15 @@ function Show-ImportGUI {
                     $result = $global:ImportPowerShell.EndInvoke($asyncResult)
 
                     if ($result.Success) {
-                        $progressLabel.Text = "Import completed successfully!"
+                        $progressLabel.Text = "Optimized import completed successfully!"
                         $progressLabel.ForegroundColor = [System.Drawing.Color]::Green
-                        $outputTextBox.AppendText("Import completed successfully!`r`n")
-                        $outputTextBox.AppendText("$($result.Summary.Count) tables processed.`r`n")
+                        $outputTextBox.AppendText("Optimized import completed successfully!`r`n")
+                        $outputTextBox.AppendText("$($result.Summary.Count) tables processed with ImportID assumption.`r`n")
                     } else {
                         $progressLabel.Text = "Import failed. Check output for details."
                         $progressLabel.ForegroundColor = [System.Drawing.Color]::Red
                         $outputTextBox.AppendText("Import failed: $($result.Message)`r`n")
+                        $outputTextBox.AppendText("Common causes: Field count mismatch, missing ImportID, data type issues`r`n")
                     }
                 }
                 catch {
