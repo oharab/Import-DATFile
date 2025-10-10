@@ -7,7 +7,8 @@ param(
     [string]$Server,
     [string]$Database,
     [string]$Username,
-    [string]$Password
+    [string]$Password,
+    [switch]$Force
 )
 
 # Import the SqlServerDataImport module
@@ -201,12 +202,26 @@ try {
     # Get schema name
     $schemaName = Get-SchemaName -DefaultSchema $prefix
 
+    # Determine table action based on Force parameter
+    if ($Force) {
+        $tableAction = "Recreate"
+        Write-Host "`n=== FORCE MODE ENABLED ===" -ForegroundColor Red
+        Write-Host "• All existing tables will be DROPPED and RECREATED" -ForegroundColor Red
+        Write-Host "• This will DELETE all existing data in the tables" -ForegroundColor Red
+    }
+    else {
+        $tableAction = "Ask"
+    }
+
     Write-Host "`n=== IMPORTANT: Optimized Import Assumptions ===" -ForegroundColor Yellow
     Write-Host "• Every data file MUST have an ImportID as the first field"
     Write-Host "• Field count MUST match: ImportID + specification fields"
     Write-Host "• Import will FAIL immediately if field counts don't match"
     Write-Host "• Only SqlBulkCopy is used - no fallback to INSERT statements"
     Write-Host "• No file logging for maximum speed"
+    if ($Force) {
+        Write-Host "• FORCE MODE: All tables will be dropped and recreated (existing data will be lost)" -ForegroundColor Red
+    }
     $confirm = Read-Host "`nDo you want to continue with these assumptions? (Y/N)"
 
     if ($confirm -notmatch '^[Yy]') {
@@ -219,7 +234,7 @@ try {
 
     # Use the optimized import function
     try {
-        $summary = Invoke-SqlServerDataImport -DataFolder $DataFolder -ExcelSpecFile $ExcelSpecFile -ConnectionString $connectionString -SchemaName $schemaName -TableExistsAction "Ask"
+        $summary = Invoke-SqlServerDataImport -DataFolder $DataFolder -ExcelSpecFile $ExcelSpecFile -ConnectionString $connectionString -SchemaName $schemaName -TableExistsAction $tableAction
         Write-Host "`n=== Import Process Completed Successfully ===" -ForegroundColor Green
 
         # Display import summary

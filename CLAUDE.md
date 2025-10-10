@@ -126,6 +126,12 @@ When run without parameters, the script prompts for:
 
 # SQL Auth with password prompt (secure, no password in command line)
 .\Import-CLI.ps1 -DataFolder "C:\path\to\data" -ExcelSpecFile "CustomSpec.xlsx" -Server "localhost" -Database "MyDB" -Username "sa"
+
+# Force mode - automatically drops and recreates all tables (deletes existing data)
+.\Import-CLI.ps1 -DataFolder "C:\path\to\data" -ExcelSpecFile "CustomSpec.xlsx" -Server "localhost" -Database "MyDB" -Force
+
+# Force mode with SQL Authentication (full automation, drops/recreates tables)
+.\Import-CLI.ps1 -DataFolder "C:\path\to\data" -ExcelSpecFile "CustomSpec.xlsx" -Server "localhost" -Database "MyDB" -Username "sa" -Password "YourPassword" -Force
 ```
 
 ### Available Parameters
@@ -135,11 +141,23 @@ When run without parameters, the script prompts for:
 - `-Database`: Database name
 - `-Username`: SQL Server authentication username (optional - if not provided, Windows Authentication is used)
 - `-Password`: SQL Server authentication password (optional - if not provided but Username is, will prompt securely)
+- `-Force`: Switch parameter - automatically drops and recreates all tables without prompting (WARNING: deletes existing data)
 
 ### Authentication Behavior
 - **No Username parameter** → Automatically uses Windows Authentication (Integrated Security)
 - **Username without Password** → Uses SQL Authentication, prompts for password securely
 - **Username with Password** → Uses SQL Authentication, fully automated
+
+### Force Mode Behavior
+- **Without -Force** → Prompts for action when tables exist (Cancel, Skip, Truncate, Recreate)
+- **With -Force** → Automatically drops and recreates ALL tables without prompting
+  - ⚠️ **WARNING**: This DELETES all existing data in the tables
+  - Shows clear warning messages before execution
+  - Still requires confirmation to proceed (Y/N prompt)
+  - Useful for:
+    - Development/testing environments
+    - Automated refresh scenarios where data loss is acceptable
+    - Situations where table schema has changed and needs to be rebuilt
 
 ### With Verbose Logging
 ```powershell
@@ -401,6 +419,15 @@ Enable verbose logging to see detailed execution flow (Note: Not available in op
 $action = New-ScheduledTaskAction -Execute "PowerShell.exe" -Argument "-File `"C:\Import-DATFile\Import-CLI.ps1`" -DataFolder `"C:\Data`" -ExcelSpecFile `"ExportSpec.xlsx`" -Server `"localhost`" -Database `"MyDB`""
 $trigger = New-ScheduledTaskTrigger -Daily -At 2am
 Register-ScheduledTask -TaskName "DailyDataImport" -Action $action -Trigger $trigger -User "DOMAIN\ServiceAccount"
+```
+
+### Scheduled Task with Force Mode (Full Refresh)
+```powershell
+# Scheduled task that drops and recreates tables every day (full refresh)
+# Use with caution - deletes all existing data!
+$action = New-ScheduledTaskAction -Execute "PowerShell.exe" -Argument "-File `"C:\Import-DATFile\Import-CLI.ps1`" -DataFolder `"C:\Data`" -ExcelSpecFile `"ExportSpec.xlsx`" -Server `"localhost`" -Database `"MyDB`" -Force"
+$trigger = New-ScheduledTaskTrigger -Daily -At 2am
+Register-ScheduledTask -TaskName "DailyDataRefresh" -Action $action -Trigger $trigger -User "DOMAIN\ServiceAccount"
 ```
 
 ### Scheduled Task with SQL Authentication
