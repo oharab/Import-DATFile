@@ -8,7 +8,7 @@
 $moduleRoot = $PSScriptRoot
 
 # Load constants
-$constantsPath = Join-Path $moduleRoot "Common\Import-DATFile.Constants.ps1"
+$constantsPath = Join-Path $moduleRoot "Private\Configuration\Import-DATFile.Constants.ps1"
 if (Test-Path $constantsPath) {
     . $constantsPath
 }
@@ -17,7 +17,7 @@ else {
 }
 
 # Load type mappings
-$typeMappingsPath = Join-Path $moduleRoot "Common\TypeMappings.psd1"
+$typeMappingsPath = Join-Path $moduleRoot "Private\Configuration\TypeMappings.psd1"
 if (Test-Path $typeMappingsPath) {
     $script:TypeMappings = Import-PowerShellDataFile -Path $typeMappingsPath
 }

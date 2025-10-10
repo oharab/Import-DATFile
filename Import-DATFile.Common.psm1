@@ -6,13 +6,13 @@
 
 # Load constants
 $moduleDir = Split-Path $PSCommandPath -Parent
-$constantsPath = Join-Path $moduleDir "Common\Import-DATFile.Constants.ps1"
+$constantsPath = Join-Path $moduleDir "Private\Configuration\Import-DATFile.Constants.ps1"
 if (Test-Path $constantsPath) {
     . $constantsPath
 }
 
 # Load type mappings
-$typeMappingsPath = Join-Path $moduleDir "Common\TypeMappings.psd1"
+$typeMappingsPath = Join-Path $moduleDir "Private\Configuration\TypeMappings.psd1"
 if (Test-Path $typeMappingsPath) {
     $script:TypeMappings = Import-PowerShellDataFile -Path $typeMappingsPath
 }

@@ -17,12 +17,17 @@ The project now follows PowerShell best practices with a clear Private/Public fo
 Import-DATFile/
 ├── SqlServerDataImport.psm1          # Root module loader (dot-sources all functions)
 ├── SqlServerDataImport.psd1          # Module manifest
+├── Import-DATFile.Common.psm1        # Shared utilities (used by CLI/GUI)
 │
 ├── Public/                            # Public API (exported functions)
 │   └── Invoke-SqlServerDataImport.ps1    # Main entry point
 │
 ├── Private/                           # Internal implementation (not exported)
-│   ├── Database/
+│   ├── Configuration/                    # Module configuration
+│   │   ├── Import-DATFile.Constants.ps1     # Centralized constants
+│   │   └── TypeMappings.psd1                # Data type mappings
+│   │
+│   ├── Database/                         # Database operations (6 functions)
 │   │   ├── Test-DatabaseConnection.ps1
 │   │   ├── New-DatabaseSchema.ps1
 │   │   ├── Test-TableExists.ps1
@@ -30,29 +35,24 @@ Import-DATFile/
 │   │   ├── Remove-DatabaseTable.ps1
 │   │   └── Clear-DatabaseTable.ps1
 │   │
-│   ├── DataImport/
+│   ├── DataImport/                       # Import pipeline (4 functions)
 │   │   ├── Read-DatFileLines.ps1
 │   │   ├── Add-DataTableRows.ps1
 │   │   ├── Invoke-SqlBulkCopy.ps1
 │   │   └── Import-DataFile.ps1
 │   │
-│   ├── Specification/
+│   ├── Specification/                    # Excel/file processing (2 functions)
 │   │   ├── Get-DataPrefix.ps1
 │   │   └── Get-TableSpecifications.ps1
 │   │
-│   ├── PostInstall/
+│   ├── PostInstall/                      # Post-import scripts (1 function)
 │   │   └── Invoke-PostInstallScripts.ps1
 │   │
-│   └── Logging/
+│   └── Logging/                          # Logging & summary (4 functions)
 │       ├── Write-ImportLog.ps1
 │       ├── Add-ImportSummary.ps1
 │       ├── Show-ImportSummary.ps1
 │       └── Clear-ImportSummary.ps1
-│
-├── Common/                            # Shared utilities
-│   ├── Import-DATFile.Common.psm1        # Common utilities module
-│   ├── Import-DATFile.Constants.ps1      # Configuration constants
-│   └── TypeMappings.psd1                 # Type mapping configuration
 │
 ├── Import-CLI.ps1                     # Command-line interface
 └── Import-GUI.ps1                     # Windows Forms GUI
@@ -69,13 +69,15 @@ Import-DATFile/
 **Core Modules:**
 - **SqlServerDataImport.psm1**: Root module loader
   - Dot-sources all Private and Public functions
-  - Loads Common utilities, Constants, and TypeMappings
+  - Loads Configuration (Constants and TypeMappings from Private/Configuration)
+  - Loads Common utilities module (Import-DATFile.Common.psm1)
   - Exports only Public functions via manifest
   - Initializes global variables ($script:ImportSummary)
   - No business logic - pure loader pattern
 
-- **Import-DATFile.Common.psm1**: Shared utilities module (NEW)
+- **Import-DATFile.Common.psm1**: Shared utilities module
   - Common functions used across CLI, GUI, and core module
+  - Lives in root directory (imported by CLI/GUI)
   - Connection string building (`New-SqlConnectionString`)
   - Module initialization (`Initialize-ImportModules`)
   - Type mapping functions (configuration-driven)
@@ -83,14 +85,15 @@ Import-DATFile/
   - Validation functions (`Test-ImportPath`, `Test-SchemaName`)
   - Eliminates code duplication between CLI and GUI
 
-- **Import-DATFile.Constants.ps1**: Configuration constants (NEW)
-  - Centralized magic numbers and settings
+**Private/Configuration:**
+- **Import-DATFile.Constants.ps1**: Centralized configuration constants
+  - Magic numbers and settings used throughout import
   - Bulk copy batch size, timeouts, progress intervals
   - Supported date formats, NULL representations
   - Boolean value mappings
   - Follows configuration over hard-coding principle
 
-- **TypeMappings.psd1**: Data type configuration file (NEW)
+- **TypeMappings.psd1**: Data type configuration file
   - Configuration-based type mappings (Open/Closed Principle)
   - SQL Server type mappings with regex patterns
   - .NET type mappings for DataTable columns
