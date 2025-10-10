@@ -118,14 +118,14 @@ When run without parameters, the script prompts for:
 # Minimal - will prompt for database connection
 .\Import-CLI.ps1 -DataFolder "C:\path\to\data" -ExcelSpecFile "CustomSpec.xlsx"
 
-# With server and database - will prompt for auth method
+# Full automation with Windows Authentication (no prompts)
 .\Import-CLI.ps1 -DataFolder "C:\path\to\data" -ExcelSpecFile "CustomSpec.xlsx" -Server "localhost" -Database "MyDB"
 
-# Full automation with Windows Authentication
-.\Import-CLI.ps1 -DataFolder "C:\path\to\data" -ExcelSpecFile "CustomSpec.xlsx" -Server "localhost" -Database "MyDB"
-
-# Full automation with SQL Server Authentication
+# Full automation with SQL Server Authentication (no prompts)
 .\Import-CLI.ps1 -DataFolder "C:\path\to\data" -ExcelSpecFile "CustomSpec.xlsx" -Server "localhost" -Database "MyDB" -Username "sa" -Password "YourPassword"
+
+# SQL Auth with password prompt (secure, no password in command line)
+.\Import-CLI.ps1 -DataFolder "C:\path\to\data" -ExcelSpecFile "CustomSpec.xlsx" -Server "localhost" -Database "MyDB" -Username "sa"
 ```
 
 ### Available Parameters
@@ -133,8 +133,13 @@ When run without parameters, the script prompts for:
 - `-ExcelSpecFile`: Name of Excel specification file (defaults to "ExportSpec.xlsx")
 - `-Server`: SQL Server instance name (e.g., "localhost", "server\instance")
 - `-Database`: Database name
-- `-Username`: SQL Server authentication username (optional, triggers SQL auth)
-- `-Password`: SQL Server authentication password (required if Username is provided)
+- `-Username`: SQL Server authentication username (optional - if not provided, Windows Authentication is used)
+- `-Password`: SQL Server authentication password (optional - if not provided but Username is, will prompt securely)
+
+### Authentication Behavior
+- **No Username parameter** → Automatically uses Windows Authentication (Integrated Security)
+- **Username without Password** → Uses SQL Authentication, prompts for password securely
+- **Username with Password** → Uses SQL Authentication, fully automated
 
 ### With Verbose Logging
 ```powershell
@@ -391,17 +396,38 @@ Enable verbose logging to see detailed execution flow (Note: Not available in op
 
 ### Scheduled Task with Windows Authentication
 ```powershell
-# Create a scheduled task that runs the import daily
+# Create a scheduled task that runs the import daily using Windows Authentication
+# No username/password needed - runs under the scheduled task account
 $action = New-ScheduledTaskAction -Execute "PowerShell.exe" -Argument "-File `"C:\Import-DATFile\Import-CLI.ps1`" -DataFolder `"C:\Data`" -ExcelSpecFile `"ExportSpec.xlsx`" -Server `"localhost`" -Database `"MyDB`""
+$trigger = New-ScheduledTaskTrigger -Daily -At 2am
+Register-ScheduledTask -TaskName "DailyDataImport" -Action $action -Trigger $trigger -User "DOMAIN\ServiceAccount"
+```
+
+### Scheduled Task with SQL Authentication
+```powershell
+# For SQL Authentication, store credentials securely
+$action = New-ScheduledTaskAction -Execute "PowerShell.exe" -Argument "-File `"C:\Import-DATFile\Import-CLI.ps1`" -DataFolder `"C:\Data`" -ExcelSpecFile `"ExportSpec.xlsx`" -Server `"localhost`" -Database `"MyDB`" -Username `"ImportUser`" -Password `"SecureP@ssw0rd`""
 $trigger = New-ScheduledTaskTrigger -Daily -At 2am
 Register-ScheduledTask -TaskName "DailyDataImport" -Action $action -Trigger $trigger
 ```
 
-### Batch Script Wrapper
+### Batch Script Wrapper (Windows Authentication)
 ```batch
 @echo off
-REM Batch file to run import with parameters
+REM Batch file to run import with Windows Authentication (default)
 PowerShell.exe -ExecutionPolicy Bypass -File "%~dp0Import-CLI.ps1" -DataFolder "C:\Data" -ExcelSpecFile "ExportSpec.xlsx" -Server "localhost" -Database "MyDB"
+if %ERRORLEVEL% NEQ 0 (
+    echo Import failed with error code %ERRORLEVEL%
+    exit /b %ERRORLEVEL%
+)
+echo Import completed successfully
+```
+
+### Batch Script Wrapper (SQL Authentication)
+```batch
+@echo off
+REM Batch file to run import with SQL Authentication
+PowerShell.exe -ExecutionPolicy Bypass -File "%~dp0Import-CLI.ps1" -DataFolder "C:\Data" -ExcelSpecFile "ExportSpec.xlsx" -Server "localhost" -Database "MyDB" -Username "ImportUser" -Password "SecureP@ssw0rd"
 if %ERRORLEVEL% NEQ 0 (
     echo Import failed with error code %ERRORLEVEL%
     exit /b %ERRORLEVEL%
@@ -416,6 +442,11 @@ $env:IMPORT_SERVER = "localhost"
 $env:IMPORT_DATABASE = "MyDB"
 $env:IMPORT_DATAFOLDER = "C:\Data"
 
-# Run import using environment variables
+# Run import using environment variables with Windows Authentication
 .\Import-CLI.ps1 -DataFolder $env:IMPORT_DATAFOLDER -ExcelSpecFile "ExportSpec.xlsx" -Server $env:IMPORT_SERVER -Database $env:IMPORT_DATABASE
+
+# Or with SQL Authentication using environment variables
+$env:IMPORT_USERNAME = "ImportUser"
+$env:IMPORT_PASSWORD = "SecureP@ssw0rd"
+.\Import-CLI.ps1 -DataFolder $env:IMPORT_DATAFOLDER -ExcelSpecFile "ExportSpec.xlsx" -Server $env:IMPORT_SERVER -Database $env:IMPORT_DATABASE -Username $env:IMPORT_USERNAME -Password $env:IMPORT_PASSWORD
 ```

@@ -101,33 +101,28 @@ function Get-DatabaseConnection {
     }
 
     # Determine authentication method
+    # If Username is provided, use SQL Authentication
+    # If Username is NOT provided, use Windows Authentication (no prompt)
     $useSqlAuth = -not [string]::IsNullOrWhiteSpace($Username)
 
-    if (-not $useSqlAuth) {
-        Write-Host "`nAuthentication Methods:"
-        Write-Host "1. Windows Authentication"
-        Write-Host "2. SQL Server Authentication"
-        $authChoice = Read-Host "Select authentication method (1 or 2)"
+    if ($useSqlAuth) {
+        # SQL Server Authentication
+        Write-Host "Authentication: SQL Server Authentication (Username: $Username)" -ForegroundColor Green
 
-        if ($authChoice -eq "2") {
-            $useSqlAuth = $true
-            $Username = Read-Host "Enter username"
-            $securePassword = Read-Host "Enter password" -AsSecureString
-            # Convert SecureString to plaintext for connection string (required by SQL Server)
+        # If password not provided, prompt for it
+        if ([string]::IsNullOrWhiteSpace($Password)) {
+            Write-Host "Password required for SQL Server Authentication" -ForegroundColor Yellow
+            $securePassword = Read-Host "Enter password for user '$Username'" -AsSecureString
             $BSTR = [System.Runtime.InteropServices.Marshal]::SecureStringToBSTR($securePassword)
             $Password = [System.Runtime.InteropServices.Marshal]::PtrToStringAuto($BSTR)
             [System.Runtime.InteropServices.Marshal]::ZeroFreeBSTR($BSTR)
         }
-    }
-    else {
-        Write-Host "Authentication: SQL Server Authentication (Username: $Username)"
-    }
 
-    # Build connection string
-    if ($useSqlAuth) {
         $connectionString = "Server=$Server;Database=$Database;User Id=$Username;Password=$Password;"
     }
     else {
+        # Windows Authentication (default when no username provided)
+        Write-Host "Authentication: Windows Authentication (Integrated Security)" -ForegroundColor Green
         $connectionString = "Server=$Server;Database=$Database;Integrated Security=True;"
     }
 
