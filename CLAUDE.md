@@ -289,10 +289,18 @@ The script has been **OPTIMIZED** for maximum speed by removing all legacy fallb
 3. **No Fallbacks**: Import fails immediately if SqlBulkCopy encounters issues
 4. **No File Logging**: Only console output for speed
 5. **Database Export Format**: Data is assumed to be correctly formatted from database export
-   - Dates in format: `yyyy-mm-dd hh:mm:ss.mmm`
-   - Numeric values in standard formats
-   - Boolean values: `1`, `0`, `TRUE`, `FALSE`, `YES`, `NO`, `Y`, `N`, `T`, `F` (case insensitive)
-   - NULL values as empty string or "NULL"
+   - **Dates**: Multiple formats supported (tries in order):
+     - `yyyy-MM-dd HH:mm:ss.fff` (preferred)
+     - `yyyy-MM-dd HH:mm:ss.ff`
+     - `yyyy-MM-dd HH:mm:ss.f`
+     - `yyyy-MM-dd HH:mm:ss`
+     - `yyyy-MM-dd`
+   - **Decimals/Money**: Standard format with period as decimal separator (e.g., `123.45`)
+     - Uses InvariantCulture for parsing (not locale-dependent)
+   - **Integers**: Can have decimal notation (e.g., `123.0` or `123.00`)
+   - **Floats**: FLOAT→Double, REAL→Single with InvariantCulture parsing
+   - **Boolean**: `1`, `0`, `TRUE`, `FALSE`, `YES`, `NO`, `Y`, `N`, `T`, `F` (case insensitive)
+   - **NULL**: Empty string, whitespace-only, `NULL`, `NA`, `N/A` (case insensitive)
 
 **Performance Improvements:**
 - **Faster startup** - No log file creation or complex field mismatch detection
@@ -313,11 +321,16 @@ The script has been **OPTIMIZED** for maximum speed by removing all legacy fallb
 ## Development Notes
 
 - **OPTIMIZED VERSION**: High-performance SqlBulkCopy ONLY (no fallbacks)
-- **Proper type handling**: DataTable columns use correct .NET types (DateTime, Int32, Decimal, Boolean, String)
+- **Proper type handling**: DataTable columns use correct .NET types (DateTime, Int32, Int64, Double, Single, Decimal, Boolean, String)
   - Enables proper conversion from string data to typed values
-  - DateTime parsing for `yyyy-mm-dd hh:mm:ss.mmm` format
-  - Numeric type conversion for INT, BIGINT, DECIMAL, MONEY
-  - Boolean conversion handles: 1/0, TRUE/FALSE, YES/NO, Y/N, T/F (case insensitive)
+  - **DateTime parsing**: Multiple format support with InvariantCulture for locale-independence
+  - **Numeric conversion**: InvariantCulture parsing for consistent decimal separator handling
+    - INT/BIGINT: Accepts decimal notation (123.0 converted to 123)
+    - FLOAT: Maps to Double with InvariantCulture
+    - REAL: Maps to Single with InvariantCulture
+    - DECIMAL/MONEY: InvariantCulture parsing with period as decimal separator
+  - **Boolean conversion**: 1/0, TRUE/FALSE, YES/NO, Y/N, T/F (case insensitive)
+  - **NULL handling**: Whitespace-aware, case-insensitive (NULL, NA, N/A)
   - Graceful fallback with warnings for conversion errors
 - **Minimal memory footprint**: Optimized DataTable structures for large datasets
 - **SQL injection protection**: Via parameter escaping and schema validation
@@ -406,6 +419,37 @@ $specs = Get-TableSpecifications -ExcelPath "C:\TestData\ExportSpec.xlsx"
 - All formats are case insensitive
 - Invalid values default to `false` with a warning
 - Check console for conversion warnings if booleans seem incorrect
+
+**Issue: Decimal/currency values not importing correctly**
+- Script uses **InvariantCulture** with period (.) as decimal separator
+- If your data uses comma (,) as decimal separator, it will fail
+- Valid: `123.45`, `-123.45`, `0.99`
+- Invalid: `123,45` (comma separator), `$123.45` (currency symbol), `1,234.56` (thousands separator)
+- Ensure decimal separator is period and no currency symbols or thousands separators
+
+**Issue: Integer values with decimals failing**
+- Fixed in latest version - integers can now have decimal notation
+- Valid: `123`, `123.0`, `123.00`, `-123`
+- The decimal part is stripped during conversion
+- If value has non-zero decimal (e.g., `123.45`), conversion will round
+
+**Issue: DateTime format variations**
+- Script tries multiple formats automatically (no action needed)
+- Supported formats:
+  - `2024-01-15 14:30:25.123` (with milliseconds)
+  - `2024-01-15 14:30:25` (no milliseconds)
+  - `2024-01-15` (date only)
+- **NOT supported**: `01/15/2024`, `15-Jan-2024`, `2024/01/15`
+- All parsing uses InvariantCulture (locale-independent)
+
+**Issue: NULL values not recognized**
+- NULL representations (case-insensitive): empty string, whitespace, `NULL`, `NA`, `N/A`
+- Valid NULL representations:
+  - `` (empty)
+  - `   ` (whitespace only)
+  - `NULL`, `null`, `Null`
+  - `NA`, `na`
+  - `N/A`, `n/a`
 
 **Issue: Connection errors**
 - Test connectivity: `Test-NetConnection -ComputerName servername -Port 1433`

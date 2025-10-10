@@ -91,7 +91,9 @@ function Get-DotNetDataType {
         "^DATE$|^DATETIME.*|^TIME$" { return [System.DateTime] }
         "^INT$|^INTEGER$|^SMALLINT$|^TINYINT$" { return [System.Int32] }
         "^BIGINT$" { return [System.Int64] }
-        "^DECIMAL.*|^NUMERIC.*|^MONEY$|^FLOAT$|^REAL$" { return [System.Decimal] }
+        "^FLOAT$|^DOUBLE.*" { return [System.Double] }
+        "^REAL$" { return [System.Single] }
+        "^DECIMAL.*|^NUMERIC.*|^MONEY$" { return [System.Decimal] }
         "^BIT$|^BOOLEAN$" { return [System.Boolean] }
         default { return [System.String] }
     }
@@ -450,24 +452,58 @@ function Import-DataFile {
             $fieldName = $Fields[$i].'Column name'
             $columnType = $dataTable.Columns[$fieldName].DataType
 
-            if ([string]::IsNullOrEmpty($value) -or $value -eq "NULL") {
+            # Check for NULL values - case insensitive and whitespace aware
+            if ([string]::IsNullOrWhiteSpace($value) -or $value -match '^(NULL|NA|N/A)$') {
                 $dataRow[$fieldName] = [DBNull]::Value
             }
             else {
                 # Convert value to proper type based on column definition
                 try {
                     if ($columnType -eq [System.DateTime]) {
-                        # Parse datetime - format is yyyy-mm-dd hh:mm:ss.mmm
-                        $dataRow[$fieldName] = [DateTime]::Parse($value)
+                        # Parse datetime using InvariantCulture for consistent behavior
+                        # Try multiple common formats
+                        $formats = @(
+                            "yyyy-MM-dd HH:mm:ss.fff",
+                            "yyyy-MM-dd HH:mm:ss.ff",
+                            "yyyy-MM-dd HH:mm:ss.f",
+                            "yyyy-MM-dd HH:mm:ss",
+                            "yyyy-MM-dd"
+                        )
+                        $parsed = $false
+                        foreach ($format in $formats) {
+                            try {
+                                $dataRow[$fieldName] = [DateTime]::ParseExact($value, $format, [System.Globalization.CultureInfo]::InvariantCulture)
+                                $parsed = $true
+                                break
+                            }
+                            catch { }
+                        }
+                        if (-not $parsed) {
+                            # Fallback to culture-aware parsing
+                            $dataRow[$fieldName] = [DateTime]::Parse($value, [System.Globalization.CultureInfo]::InvariantCulture)
+                        }
                     }
                     elseif ($columnType -eq [System.Int32]) {
-                        $dataRow[$fieldName] = [Int32]::Parse($value)
+                        # Handle integers that may have decimal notation (e.g., "123.0")
+                        $decimalValue = [Decimal]::Parse($value, [System.Globalization.CultureInfo]::InvariantCulture)
+                        $dataRow[$fieldName] = [Int32]$decimalValue
                     }
                     elseif ($columnType -eq [System.Int64]) {
-                        $dataRow[$fieldName] = [Int64]::Parse($value)
+                        # Handle big integers that may have decimal notation
+                        $decimalValue = [Decimal]::Parse($value, [System.Globalization.CultureInfo]::InvariantCulture)
+                        $dataRow[$fieldName] = [Int64]$decimalValue
+                    }
+                    elseif ($columnType -eq [System.Double]) {
+                        # FLOAT - use InvariantCulture for consistent decimal separator
+                        $dataRow[$fieldName] = [Double]::Parse($value, [System.Globalization.CultureInfo]::InvariantCulture)
+                    }
+                    elseif ($columnType -eq [System.Single]) {
+                        # REAL - use InvariantCulture for consistent decimal separator
+                        $dataRow[$fieldName] = [Single]::Parse($value, [System.Globalization.CultureInfo]::InvariantCulture)
                     }
                     elseif ($columnType -eq [System.Decimal]) {
-                        $dataRow[$fieldName] = [Decimal]::Parse($value)
+                        # DECIMAL/NUMERIC/MONEY - use InvariantCulture for consistent decimal separator
+                        $dataRow[$fieldName] = [Decimal]::Parse($value, [System.Globalization.CultureInfo]::InvariantCulture)
                     }
                     elseif ($columnType -eq [System.Boolean]) {
                         # Handle common boolean representations
