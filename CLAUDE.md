@@ -10,16 +10,34 @@ This is a PowerShell-based data import utility that reads pipe-separated .dat fi
 
 ### Modular Design
 - **SqlServerDataImport.psm1**: Core PowerShell module with all import logic
+  - Contains all business logic functions
+  - No UI dependencies - pure data processing
+  - Exports functions for use by CLI and GUI interfaces
+
 - **Import-CLI.ps1**: Interactive command-line interface
+  - Prompts user for configuration (data folder, Excel file, connection details)
+  - Imports and calls `Invoke-SqlServerDataImport` from module
+  - Supports both interactive and parameter-based execution
+  - Console-based progress display
+
 - **Import-GUI.ps1**: Windows Forms graphical interface
+  - Rich UI with file browsers, connection builders, and real-time output
+  - Uses System.Windows.Forms for native Windows GUI
+  - Imports and calls `Invoke-SqlServerDataImport` from module
+  - Background runspace execution to prevent UI freezing
+  - Captures and displays console output in real-time
+
 - **Launch-Import-GUI.bat**: One-click launcher for GUI
+  - Simple batch file to launch Import-GUI.ps1
+  - Sets PowerShell execution policy for the session
+
 - Self-contained with only SqlServer and ImportExcel module dependencies
 
 ### Key Components
 1. **Prefix Detection**: Automatically detects file prefix by finding `*Employee.dat` file
 2. **Schema Management**: Creates database schemas based on detected prefix
 3. **Dynamic Table Creation**: Builds SQL tables from Excel specifications
-4. **High-Performance Data Import**: Uses SqlBulkCopy for optimal performance with automatic fallback
+4. **High-Performance Data Import**: Uses SqlBulkCopy exclusively for optimal performance (no fallbacks)
 5. **Interactive Configuration**: Prompts for data folder, Excel file, database connection and schema details
 
 ### Data Flow
@@ -29,6 +47,46 @@ This is a PowerShell-based data import utility that reads pipe-separated .dat fi
 4. Creates schema and tables based on specifications
 5. Imports data from matching .dat files using high-performance SqlBulkCopy
 6. Displays comprehensive import summary with row counts
+
+### Core Module Functions (SqlServerDataImport.psm1)
+
+**File and Specification Functions:**
+- `Get-DataPrefix`: Detects data file prefix by locating *Employee.dat file
+- `Get-TableSpecifications`: Reads and parses Excel specification file
+- `Get-SqlDataTypeMapping`: Maps Excel data types to SQL Server types
+- `Get-DotNetDataType`: Maps SQL types to .NET types for DataTable columns
+
+**Database Management Functions:**
+- `Test-DatabaseConnection`: Validates SQL Server connectivity
+- `Test-TableExists`: Checks if a table exists in the database
+- `New-DatabaseSchema`: Creates database schema if it doesn't exist
+- `New-DatabaseTable`: Creates table with ImportID + specification fields
+- `Remove-DatabaseTable`: Drops existing table (for Recreate action)
+- `Clear-DatabaseTable`: Truncates table data (for Truncate action)
+
+**Import Functions:**
+- `Import-DataFile`: Core function that reads .dat file and bulk imports using SqlBulkCopy
+  - Creates DataTable structure with ImportID first and proper .NET types for each column
+  - Validates strict field count matching
+  - Populates DataTable rows from pipe-separated data with type conversion:
+    - DateTime parsing for date/time columns
+    - Numeric conversion for INT, BIGINT, DECIMAL, MONEY columns
+    - Direct assignment for string columns
+    - Graceful error handling with warnings for conversion failures
+  - Performs SqlBulkCopy operation with column mappings
+  - Returns row count imported
+
+**Summary and Reporting:**
+- `Add-ImportSummary`: Tracks imported tables and row counts
+- `Show-ImportSummary`: Displays formatted import summary
+- `Clear-ImportSummary`: Resets summary for new import session
+
+**Main Entry Point:**
+- `Invoke-SqlServerDataImport`: Orchestrates the entire import process
+  - Parameters: DataFolder, ExcelSpecFile, ConnectionString, SchemaName, TableExistsAction
+  - Handles table conflict resolution (Ask, Skip, Truncate, Recreate)
+  - Processes all matching .dat files
+  - Returns comprehensive results
 
 ## Running the Script
 
@@ -57,13 +115,31 @@ When run without parameters, the script prompts for:
 
 ### With Parameters
 ```powershell
+# Minimal - will prompt for database connection
 .\Import-CLI.ps1 -DataFolder "C:\path\to\data" -ExcelSpecFile "CustomSpec.xlsx"
+
+# With server and database - will prompt for auth method
+.\Import-CLI.ps1 -DataFolder "C:\path\to\data" -ExcelSpecFile "CustomSpec.xlsx" -Server "localhost" -Database "MyDB"
+
+# Full automation with Windows Authentication
+.\Import-CLI.ps1 -DataFolder "C:\path\to\data" -ExcelSpecFile "CustomSpec.xlsx" -Server "localhost" -Database "MyDB"
+
+# Full automation with SQL Server Authentication
+.\Import-CLI.ps1 -DataFolder "C:\path\to\data" -ExcelSpecFile "CustomSpec.xlsx" -Server "localhost" -Database "MyDB" -Username "sa" -Password "YourPassword"
 ```
+
+### Available Parameters
+- `-DataFolder`: Path to folder containing .dat files and Excel specification
+- `-ExcelSpecFile`: Name of Excel specification file (defaults to "ExportSpec.xlsx")
+- `-Server`: SQL Server instance name (e.g., "localhost", "server\instance")
+- `-Database`: Database name
+- `-Username`: SQL Server authentication username (optional, triggers SQL auth)
+- `-Password`: SQL Server authentication password (required if Username is provided)
 
 ### With Verbose Logging
 ```powershell
 .\Import-CLI.ps1 -Verbose
-.\Import-CLI.ps1 -DataFolder "C:\path\to\data" -ExcelSpecFile "CustomSpec.xlsx" -Verbose
+.\Import-CLI.ps1 -DataFolder "C:\path\to\data" -ExcelSpecFile "CustomSpec.xlsx" -Server "localhost" -Database "MyDB" -Verbose
 ```
 
 ### Prerequisites
@@ -88,12 +164,14 @@ Required columns in Excel file:
 
 ## Data Type Mappings
 
-The script maps Excel types to SQL Server types via `Get-DataTypeMapping` function:
+The script maps Excel types to SQL Server types via `Get-SqlDataTypeMapping` function:
 - VARCHAR/CHAR with precision support
 - Numeric types (INT, BIGINT, DECIMAL, MONEY)
 - Date/time types (DATE, DATETIME2, TIME)
 - Text types default to NVARCHAR(MAX)
 - Unknown types default to NVARCHAR(255)
+
+**Note**: In the optimized version, all data is treated as strings in the DataTable and SqlBulkCopy handles type conversions automatically, since the data is assumed to come from properly formatted database exports.
 
 ## Error Handling & Recovery
 
@@ -104,14 +182,13 @@ When tables exist, the script offers interactive options:
 3. Truncate existing data
 4. Drop and recreate table
 
-### Field Count Mismatch Handling
-Data files often contain an extra first field (import name) not in specifications:
-- Automatically detects when data file has exactly one more field than spec
-- Interactive prompt offers three options:
-  1. **Yes**: Skip first field for current table only
-  2. **No**: Exit the entire import process
-  3. **Always**: Skip first field for all remaining tables without asking
-- Global `$AlwaysSkipFirstField` variable tracks "Always" selection
+### Field Count Mismatch Handling (OPTIMIZED VERSION)
+In the optimized version, field count handling has been streamlined:
+- **Strict Validation**: Every data file MUST have ImportID as the first field
+- **Expected Field Count**: ImportID + exact number of specification fields
+- **Fail Fast**: Any mismatch causes immediate import failure with detailed error message
+- **No Interactive Prompts**: For maximum automation and speed, field count must match exactly
+- The script logs the line number and expected vs. actual field counts for debugging
 
 ### Validation Steps
 - Verifies data folder and Excel file existence
@@ -178,15 +255,20 @@ The script has been **OPTIMIZED** for maximum speed by removing all legacy fallb
 - **Simplified field handling** - Every file MUST have ImportID as first field
 - **Removed file logging** - Eliminates slow disk I/O during import
 - **Strict validation** - Fails fast on field count mismatches instead of complex handling
-- **Eliminated verbose parameters** - Reduced function call overhead
-- **Simplified type conversion** - Treats all data as strings, letting SqlBulkCopy handle conversions since data comes from database exports
+- **Proper type conversion** - Maps SQL types to correct .NET types in DataTable for accurate SqlBulkCopy handling
+  - DateTime fields are parsed from `yyyy-mm-dd hh:mm:ss.mmm` format
+  - Numeric types (INT, BIGINT, DECIMAL, MONEY) are properly converted
+  - String types pass through directly
 
 **Major Assumptions (BREAKING CHANGES):**
 1. **ImportID Field**: Every data file MUST have an ImportID as the first field
 2. **Exact Field Counts**: Field count MUST be exactly ImportID + specification fields
 3. **No Fallbacks**: Import fails immediately if SqlBulkCopy encounters issues
 4. **No File Logging**: Only console output for speed
-5. **Database Export Format**: Data is assumed to be correctly formatted from database export, minimal type conversion
+5. **Database Export Format**: Data is assumed to be correctly formatted from database export
+   - Dates in format: `yyyy-mm-dd hh:mm:ss.mmm`
+   - Numeric values in standard formats
+   - NULL values as empty string or "NULL"
 
 **Performance Improvements:**
 - **Faster startup** - No log file creation or complex field mismatch detection
@@ -207,10 +289,133 @@ The script has been **OPTIMIZED** for maximum speed by removing all legacy fallb
 ## Development Notes
 
 - **OPTIMIZED VERSION**: High-performance SqlBulkCopy ONLY (no fallbacks)
-- **Simplified data handling**: All data treated as strings for maximum speed
+- **Proper type handling**: DataTable columns use correct .NET types (DateTime, Int32, Decimal, String)
+  - Enables proper conversion from string data to typed values
+  - DateTime parsing for `yyyy-mm-dd hh:mm:ss.mmm` format
+  - Numeric type conversion for INT, BIGINT, DECIMAL, MONEY
+  - Graceful fallback with warnings for conversion errors
 - **Minimal memory footprint**: Optimized DataTable structures for large datasets
 - **SQL injection protection**: Via parameter escaping and schema validation
+  - Schema names validated with regex: `^[a-zA-Z0-9_]+$`
+  - Table and column names properly bracketed in SQL queries
+  - SqlBulkCopy API prevents injection via data values
 - **Fast-fail error handling**: Immediate failure on data format issues
 - **Streamlined user interface**: Clear warnings and confirmations
 - **Performance-focused**: Removed all unnecessary overhead for maximum speed
 - **Database export optimized**: Assumes correctly formatted data from source databases
+
+## Architecture Patterns
+
+### Separation of Concerns
+The modular design ensures clean separation between:
+1. **Data Processing Logic** (SqlServerDataImport.psm1): Pure functions with no UI dependencies
+2. **User Interfaces** (Import-CLI.ps1, Import-GUI.ps1): Handle user interaction, delegate to module
+3. **Configuration** (Excel specification file): External schema definitions
+
+### Module Reusability
+The core module can be imported into any PowerShell script:
+```powershell
+Import-Module .\SqlServerDataImport.psm1
+
+$params = @{
+    DataFolder = "C:\Data"
+    ExcelSpecFile = "ExportSpec.xlsx"
+    ConnectionString = "Server=localhost;Database=MyDB;Integrated Security=True;"
+    SchemaName = "MySchema"
+    TableExistsAction = "Truncate"
+}
+
+Invoke-SqlServerDataImport @params
+```
+
+### Error Handling Strategy
+- **Validation-first**: All inputs validated before processing begins
+- **Fail-fast**: Errors halt execution immediately with clear messages
+- **Detailed logging**: Timestamped logs with severity levels (INFO, SUCCESS, WARNING, ERROR)
+- **No silent failures**: All errors are surfaced to the user
+
+## Testing and Debugging
+
+### Testing Individual Components
+To test module functions independently:
+```powershell
+Import-Module .\SqlServerDataImport.psm1 -Force
+
+# Test prefix detection
+$prefix = Get-DataPrefix -FolderPath "C:\TestData"
+
+# Test database connection
+$connString = "Server=localhost;Database=TestDB;Integrated Security=True;"
+Test-DatabaseConnection -ConnectionString $connString
+
+# Test table specifications
+$specs = Get-TableSpecifications -ExcelPath "C:\TestData\ExportSpec.xlsx"
+```
+
+### Common Issues and Debugging
+
+**Issue: "No *Employee.dat file found"**
+- Verify at least one file matches pattern `*Employee.dat`
+- Check file naming convention and case sensitivity
+
+**Issue: Field count mismatch**
+- All data files MUST have ImportID as first field
+- Count fields in .dat file vs. Excel specification
+- Remember: Expected = 1 (ImportID) + Excel spec fields
+
+**Issue: SqlBulkCopy fails**
+- Check data types compatibility between .dat file and SQL table
+- Verify NULL values are properly formatted (empty or "NULL")
+- Check for data truncation (field too large for column)
+
+**Issue: Dates importing as NULL**
+- Verify date format in .dat file matches expected: `yyyy-mm-dd hh:mm:ss.mmm`
+- Check Excel specification has correct date type (DATE, DATETIME, DATETIME2)
+- Look for type conversion warnings in the console output
+- Example valid formats:
+  - `2024-01-15 14:30:25.123`
+  - `2024-01-15 00:00:00.000` (for DATE types)
+
+**Issue: Connection errors**
+- Test connectivity: `Test-NetConnection -ComputerName servername -Port 1433`
+- Verify SQL Server authentication mode (Windows vs SQL auth)
+- Check firewall rules and SQL Server browser service
+
+### Verbose Logging for Diagnostics
+Enable verbose logging to see detailed execution flow (Note: Not available in optimized version, but logging via Write-ImportLog is still active):
+```powershell
+.\Import-CLI.ps1 -DataFolder "C:\Data" -ExcelSpecFile "Spec.xlsx" -Verbose
+```
+
+## Automation Scenarios
+
+### Scheduled Task with Windows Authentication
+```powershell
+# Create a scheduled task that runs the import daily
+$action = New-ScheduledTaskAction -Execute "PowerShell.exe" -Argument "-File `"C:\Import-DATFile\Import-CLI.ps1`" -DataFolder `"C:\Data`" -ExcelSpecFile `"ExportSpec.xlsx`" -Server `"localhost`" -Database `"MyDB`""
+$trigger = New-ScheduledTaskTrigger -Daily -At 2am
+Register-ScheduledTask -TaskName "DailyDataImport" -Action $action -Trigger $trigger
+```
+
+### Batch Script Wrapper
+```batch
+@echo off
+REM Batch file to run import with parameters
+PowerShell.exe -ExecutionPolicy Bypass -File "%~dp0Import-CLI.ps1" -DataFolder "C:\Data" -ExcelSpecFile "ExportSpec.xlsx" -Server "localhost" -Database "MyDB"
+if %ERRORLEVEL% NEQ 0 (
+    echo Import failed with error code %ERRORLEVEL%
+    exit /b %ERRORLEVEL%
+)
+echo Import completed successfully
+```
+
+### Environment Variable Based Configuration
+```powershell
+# Set environment variables for repeated use
+$env:IMPORT_SERVER = "localhost"
+$env:IMPORT_DATABASE = "MyDB"
+$env:IMPORT_DATAFOLDER = "C:\Data"
+
+# Run import using environment variables
+.\Import-CLI.ps1 -DataFolder $env:IMPORT_DATAFOLDER -ExcelSpecFile "ExportSpec.xlsx" -Server $env:IMPORT_SERVER -Database $env:IMPORT_DATABASE
+```

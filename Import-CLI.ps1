@@ -3,7 +3,11 @@
 
 param(
     [string]$DataFolder,
-    [string]$ExcelSpecFile
+    [string]$ExcelSpecFile,
+    [string]$Server,
+    [string]$Database,
+    [string]$Username,
+    [string]$Password
 )
 
 # Import the SqlServerDataImport module
@@ -72,28 +76,59 @@ function Get-DataFolderAndSpec {
 }
 
 function Get-DatabaseConnection {
+    param(
+        [string]$Server,
+        [string]$Database,
+        [string]$Username,
+        [string]$Password
+    )
+
     Write-Host "`n=== Database Connection Configuration ===" -ForegroundColor Cyan
 
-    $server = Read-Host "Enter SQL Server instance (e.g., localhost, server\instance)"
-    $database = Read-Host "Enter database name"
-
-    Write-Host "`nAuthentication Methods:"
-    Write-Host "1. Windows Authentication"
-    Write-Host "2. SQL Server Authentication"
-    $authChoice = Read-Host "Select authentication method (1 or 2)"
-
-    if ($authChoice -eq "2") {
-        $username = Read-Host "Enter username"
-        $securePassword = Read-Host "Enter password" -AsSecureString
-        # Convert SecureString to plaintext for connection string (required by SQL Server)
-        $BSTR = [System.Runtime.InteropServices.Marshal]::SecureStringToBSTR($securePassword)
-        $password = [System.Runtime.InteropServices.Marshal]::PtrToStringAuto($BSTR)
-        $connectionString = "Server=$server;Database=$database;User Id=$username;Password=$password;"
-        # Clear password from memory immediately after use
-        [System.Runtime.InteropServices.Marshal]::ZeroFreeBSTR($BSTR)
+    # Use provided parameters or prompt for missing ones
+    if ([string]::IsNullOrWhiteSpace($Server)) {
+        $Server = Read-Host "Enter SQL Server instance (e.g., localhost, server\instance)"
     }
     else {
-        $connectionString = "Server=$server;Database=$database;Integrated Security=True;"
+        Write-Host "Server: $Server (from parameter)"
+    }
+
+    if ([string]::IsNullOrWhiteSpace($Database)) {
+        $Database = Read-Host "Enter database name"
+    }
+    else {
+        Write-Host "Database: $Database (from parameter)"
+    }
+
+    # Determine authentication method
+    $useSqlAuth = -not [string]::IsNullOrWhiteSpace($Username)
+
+    if (-not $useSqlAuth) {
+        Write-Host "`nAuthentication Methods:"
+        Write-Host "1. Windows Authentication"
+        Write-Host "2. SQL Server Authentication"
+        $authChoice = Read-Host "Select authentication method (1 or 2)"
+
+        if ($authChoice -eq "2") {
+            $useSqlAuth = $true
+            $Username = Read-Host "Enter username"
+            $securePassword = Read-Host "Enter password" -AsSecureString
+            # Convert SecureString to plaintext for connection string (required by SQL Server)
+            $BSTR = [System.Runtime.InteropServices.Marshal]::SecureStringToBSTR($securePassword)
+            $Password = [System.Runtime.InteropServices.Marshal]::PtrToStringAuto($BSTR)
+            [System.Runtime.InteropServices.Marshal]::ZeroFreeBSTR($BSTR)
+        }
+    }
+    else {
+        Write-Host "Authentication: SQL Server Authentication (Username: $Username)"
+    }
+
+    # Build connection string
+    if ($useSqlAuth) {
+        $connectionString = "Server=$Server;Database=$Database;User Id=$Username;Password=$Password;"
+    }
+    else {
+        $connectionString = "Server=$Server;Database=$Database;Integrated Security=True;"
     }
 
     # Test connection using module function
@@ -163,7 +198,7 @@ try {
     Write-Host "Excel Spec File: $ExcelSpecFile"
 
     # Get database connection
-    $connectionString = Get-DatabaseConnection
+    $connectionString = Get-DatabaseConnection -Server $Server -Database $Database -Username $Username -Password $Password
 
     # Get prefix from data folder
     $prefix = Get-DataPrefix -FolderPath $DataFolder

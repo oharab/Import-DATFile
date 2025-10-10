@@ -79,6 +79,24 @@ function Get-SqlDataTypeMapping {
     }
 }
 
+function Get-DotNetDataType {
+    param(
+        [Parameter(Mandatory=$true)]
+        [string]$SqlType
+    )
+
+    $type = $SqlType.ToUpper()
+
+    switch -Regex ($type) {
+        "^DATE$|^DATETIME.*|^TIME$" { return [System.DateTime] }
+        "^INT$|^INTEGER$|^SMALLINT$|^TINYINT$" { return [System.Int32] }
+        "^BIGINT$" { return [System.Int64] }
+        "^DECIMAL.*|^NUMERIC.*|^MONEY$|^FLOAT$|^REAL$" { return [System.Decimal] }
+        "^BIT$|^BOOLEAN$" { return [System.Boolean] }
+        default { return [System.String] }
+    }
+}
+
 #endregion
 
 #region File and Specification Functions
@@ -388,12 +406,15 @@ function Import-DataFile {
     $importIdColumn.DataType = [System.String]
     $dataTable.Columns.Add($importIdColumn)
 
-    # Add columns for each field from specification
-    # Since data comes from database export, treat all as strings and let SqlBulkCopy handle conversions
+    # Add columns for each field from specification with proper data types
     foreach ($field in $Fields) {
         $column = New-Object System.Data.DataColumn
         $column.ColumnName = $field.'Column name'
-        $column.DataType = [System.String]  # Simplified - all as strings for database exports
+
+        # Get SQL type and map to proper .NET type for better SqlBulkCopy handling
+        $sqlType = Get-SqlDataTypeMapping -ExcelType $field."Data type" -Precision $field.Precision
+        $column.DataType = Get-DotNetDataType -SqlType $sqlType
+
         $dataTable.Columns.Add($column)
     }
 
@@ -427,14 +448,40 @@ function Import-DataFile {
         for ($i = 0; $i -lt $Fields.Count; $i++) {
             $value = $values[$i + 1].Trim()
             $fieldName = $Fields[$i].'Column name'
+            $columnType = $dataTable.Columns[$fieldName].DataType
 
             if ([string]::IsNullOrEmpty($value) -or $value -eq "NULL") {
                 $dataRow[$fieldName] = [DBNull]::Value
             }
             else {
-                # Since data comes from database export, values should already be in correct format
-                # Just assign directly - SqlBulkCopy will handle any necessary conversions
-                $dataRow[$fieldName] = $value
+                # Convert value to proper type based on column definition
+                try {
+                    if ($columnType -eq [System.DateTime]) {
+                        # Parse datetime - format is yyyy-mm-dd hh:mm:ss.mmm
+                        $dataRow[$fieldName] = [DateTime]::Parse($value)
+                    }
+                    elseif ($columnType -eq [System.Int32]) {
+                        $dataRow[$fieldName] = [Int32]::Parse($value)
+                    }
+                    elseif ($columnType -eq [System.Int64]) {
+                        $dataRow[$fieldName] = [Int64]::Parse($value)
+                    }
+                    elseif ($columnType -eq [System.Decimal]) {
+                        $dataRow[$fieldName] = [Decimal]::Parse($value)
+                    }
+                    elseif ($columnType -eq [System.Boolean]) {
+                        $dataRow[$fieldName] = [Boolean]::Parse($value)
+                    }
+                    else {
+                        # String types - assign directly
+                        $dataRow[$fieldName] = $value
+                    }
+                }
+                catch {
+                    Write-ImportLog "Error converting value '$value' for field '$fieldName' at line $lineNumber. Expected type: $($columnType.Name). Error: $($_.Exception.Message)" -Level "WARNING"
+                    # Assign as string and let SqlBulkCopy try to handle it
+                    $dataRow[$fieldName] = $value
+                }
             }
         }
 
