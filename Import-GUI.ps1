@@ -40,7 +40,7 @@ function Show-ImportGUI {
     # Create main form
     $form = New-Object System.Windows.Forms.Form
     $form.Text = "SQL Server Data Import Utility (Optimized)"
-    $form.Size = New-Object System.Drawing.Size(620, 700)
+    $form.Size = New-Object System.Drawing.Size(620, 760)
     $form.StartPosition = "CenterScreen"
     $form.FormBorderStyle = "FixedDialog"
     $form.MaximizeBox = $false
@@ -67,7 +67,7 @@ function Show-ImportGUI {
     # Warning section
     $warningGroupBox = New-Object System.Windows.Forms.GroupBox
     $warningGroupBox.Text = "⚠️ IMPORTANT: Optimized Import Assumptions"
-    $warningGroupBox.Size = New-Object System.Drawing.Size(580, 90)
+    $warningGroupBox.Size = New-Object System.Drawing.Size(580, 95)
     $warningGroupBox.Location = New-Object System.Drawing.Point(10, 75)
     $warningGroupBox.ForeColor = [System.Drawing.Color]::DarkRed
     $form.Controls.Add($warningGroupBox)
@@ -78,9 +78,10 @@ function Show-ImportGUI {
 • Field count MUST match exactly: ImportID + specification fields
 • Import FAILS immediately if field counts don't match (shows problematic line)
 • Only SqlBulkCopy is used - no fallback to INSERT statements
+• Dates: yyyy-MM-dd format | Decimals: period separator | NULL: case-insensitive
 • No file logging for maximum speed - console output only
 "@
-    $warningLabel.Size = New-Object System.Drawing.Size(560, 65)
+    $warningLabel.Size = New-Object System.Drawing.Size(560, 70)
     $warningLabel.Location = New-Object System.Drawing.Point(10, 15)
     $warningLabel.ForeColor = [System.Drawing.Color]::DarkRed
     $warningGroupBox.Controls.Add($warningLabel)
@@ -89,19 +90,19 @@ function Show-ImportGUI {
     $dataFolderLabel = New-Object System.Windows.Forms.Label
     $dataFolderLabel.Text = "Data Folder:"
     $dataFolderLabel.Size = New-Object System.Drawing.Size(100, 20)
-    $dataFolderLabel.Location = New-Object System.Drawing.Point(20, 185)
+    $dataFolderLabel.Location = New-Object System.Drawing.Point(20, 190)
     $form.Controls.Add($dataFolderLabel)
 
     $dataFolderTextBox = New-Object System.Windows.Forms.TextBox
     $dataFolderTextBox.Size = New-Object System.Drawing.Size(380, 20)
-    $dataFolderTextBox.Location = New-Object System.Drawing.Point(20, 205)
+    $dataFolderTextBox.Location = New-Object System.Drawing.Point(20, 210)
     $dataFolderTextBox.Text = (Get-Location).Path
     $form.Controls.Add($dataFolderTextBox)
 
     $dataFolderButton = New-Object System.Windows.Forms.Button
     $dataFolderButton.Text = "Browse..."
     $dataFolderButton.Size = New-Object System.Drawing.Size(80, 25)
-    $dataFolderButton.Location = New-Object System.Drawing.Point(410, 203)
+    $dataFolderButton.Location = New-Object System.Drawing.Point(410, 208)
     $dataFolderButton.Add_Click({
         $folderDialog = New-Object System.Windows.Forms.FolderBrowserDialog
         $folderDialog.Description = "Select folder containing .dat files"
@@ -116,19 +117,19 @@ function Show-ImportGUI {
     $excelLabel = New-Object System.Windows.Forms.Label
     $excelLabel.Text = "Excel Specification File:"
     $excelLabel.Size = New-Object System.Drawing.Size(150, 20)
-    $excelLabel.Location = New-Object System.Drawing.Point(20, 240)
+    $excelLabel.Location = New-Object System.Drawing.Point(20, 245)
     $form.Controls.Add($excelLabel)
 
     $excelTextBox = New-Object System.Windows.Forms.TextBox
     $excelTextBox.Size = New-Object System.Drawing.Size(380, 20)
-    $excelTextBox.Location = New-Object System.Drawing.Point(20, 260)
+    $excelTextBox.Location = New-Object System.Drawing.Point(20, 265)
     $excelTextBox.Text = "ExportSpec.xlsx"
     $form.Controls.Add($excelTextBox)
 
     $excelButton = New-Object System.Windows.Forms.Button
     $excelButton.Text = "Browse..."
     $excelButton.Size = New-Object System.Drawing.Size(80, 25)
-    $excelButton.Location = New-Object System.Drawing.Point(410, 258)
+    $excelButton.Location = New-Object System.Drawing.Point(410, 263)
     $excelButton.Add_Click({
         $fileDialog = New-Object System.Windows.Forms.OpenFileDialog
         $fileDialog.Filter = "Excel files (*.xlsx;*.xls)|*.xlsx;*.xls|All files (*.*)|*.*"
@@ -147,7 +148,7 @@ function Show-ImportGUI {
     $dbGroupBox = New-Object System.Windows.Forms.GroupBox
     $dbGroupBox.Text = "Database Connection"
     $dbGroupBox.Size = New-Object System.Drawing.Size(470, 120)
-    $dbGroupBox.Location = New-Object System.Drawing.Point(20, 295)
+    $dbGroupBox.Location = New-Object System.Drawing.Point(20, 300)
     $form.Controls.Add($dbGroupBox)
 
     # Server
@@ -232,12 +233,12 @@ function Show-ImportGUI {
     $schemaLabel = New-Object System.Windows.Forms.Label
     $schemaLabel.Text = "Schema Name (optional - defaults to detected prefix):"
     $schemaLabel.Size = New-Object System.Drawing.Size(300, 20)
-    $schemaLabel.Location = New-Object System.Drawing.Point(20, 425)
+    $schemaLabel.Location = New-Object System.Drawing.Point(20, 430)
     $form.Controls.Add($schemaLabel)
 
     $schemaTextBox = New-Object System.Windows.Forms.TextBox
     $schemaTextBox.Size = New-Object System.Drawing.Size(380, 20)
-    $schemaTextBox.Location = New-Object System.Drawing.Point(20, 445)
+    $schemaTextBox.Location = New-Object System.Drawing.Point(20, 450)
     $schemaTextBox.ForeColor = [System.Drawing.Color]::Gray
     $schemaTextBox.Text = "Leave empty to use detected prefix"
     $form.Controls.Add($schemaTextBox)
@@ -260,7 +261,7 @@ function Show-ImportGUI {
     $optionsGroupBox = New-Object System.Windows.Forms.GroupBox
     $optionsGroupBox.Text = "Import Options"
     $optionsGroupBox.Size = New-Object System.Drawing.Size(470, 60)
-    $optionsGroupBox.Location = New-Object System.Drawing.Point(20, 475)
+    $optionsGroupBox.Location = New-Object System.Drawing.Point(20, 480)
     $form.Controls.Add($optionsGroupBox)
 
     # Table exists action
@@ -274,9 +275,18 @@ function Show-ImportGUI {
     $tableActionComboBox.Size = New-Object System.Drawing.Size(120, 25)
     $tableActionComboBox.Location = New-Object System.Drawing.Point(110, 23)
     $tableActionComboBox.DropDownStyle = "DropDownList"
-    $tableActionComboBox.Items.AddRange(@("Recreate", "Skip", "Truncate"))
+    $tableActionComboBox.Items.AddRange(@("Recreate", "Truncate", "Skip", "Ask"))
     $tableActionComboBox.SelectedIndex = 0
     $optionsGroupBox.Controls.Add($tableActionComboBox)
+
+    # Add tooltip
+    $tooltip = New-Object System.Windows.Forms.ToolTip
+    $tooltip.SetToolTip($tableActionComboBox, @"
+Recreate: Drop and recreate all tables (deletes existing data)
+Truncate: Keep tables, clear all data
+Skip: Skip tables that already exist
+Ask: Prompt for each table (CLI-only, defaults to Recreate in GUI)
+"@)
 
     # Note about removed options
     $removedLabel = New-Object System.Windows.Forms.Label
@@ -291,12 +301,12 @@ function Show-ImportGUI {
     $progressLabel = New-Object System.Windows.Forms.Label
     $progressLabel.Text = "Ready to import..."
     $progressLabel.Size = New-Object System.Drawing.Size(470, 20)
-    $progressLabel.Location = New-Object System.Drawing.Point(20, 545)
+    $progressLabel.Location = New-Object System.Drawing.Point(20, 550)
     $form.Controls.Add($progressLabel)
 
     $progressBar = New-Object System.Windows.Forms.ProgressBar
     $progressBar.Size = New-Object System.Drawing.Size(470, 23)
-    $progressBar.Location = New-Object System.Drawing.Point(20, 570)
+    $progressBar.Location = New-Object System.Drawing.Point(20, 575)
     $progressBar.Style = "Marquee"
     $progressBar.MarqueeAnimationSpeed = 0
     $form.Controls.Add($progressBar)
@@ -306,7 +316,7 @@ function Show-ImportGUI {
     $outputTextBox.Multiline = $true
     $outputTextBox.ScrollBars = "Vertical"
     $outputTextBox.Size = New-Object System.Drawing.Size(470, 80)
-    $outputTextBox.Location = New-Object System.Drawing.Point(20, 600)
+    $outputTextBox.Location = New-Object System.Drawing.Point(20, 605)
     $outputTextBox.ReadOnly = $true
     $outputTextBox.BackColor = [System.Drawing.Color]::Black
     $outputTextBox.ForeColor = [System.Drawing.Color]::Lime
@@ -317,7 +327,7 @@ function Show-ImportGUI {
     $startButton = New-Object System.Windows.Forms.Button
     $startButton.Text = "Start Import"
     $startButton.Size = New-Object System.Drawing.Size(100, 30)
-    $startButton.Location = New-Object System.Drawing.Point(500, 600)
+    $startButton.Location = New-Object System.Drawing.Point(500, 605)
     $startButton.BackColor = [System.Drawing.Color]::LightGreen
     $startButton.Font = New-Object System.Drawing.Font("Segoe UI", 9, [System.Drawing.FontStyle]::Bold)
     $form.Controls.Add($startButton)
@@ -325,14 +335,14 @@ function Show-ImportGUI {
     $cancelButton = New-Object System.Windows.Forms.Button
     $cancelButton.Text = "Cancel"
     $cancelButton.Size = New-Object System.Drawing.Size(100, 30)
-    $cancelButton.Location = New-Object System.Drawing.Point(500, 640)
+    $cancelButton.Location = New-Object System.Drawing.Point(500, 645)
     $cancelButton.Enabled = $false
     $form.Controls.Add($cancelButton)
 
     $exitButton = New-Object System.Windows.Forms.Button
     $exitButton.Text = "Exit"
     $exitButton.Size = New-Object System.Drawing.Size(100, 30)
-    $exitButton.Location = New-Object System.Drawing.Point(500, 680)
+    $exitButton.Location = New-Object System.Drawing.Point(500, 685)
     $exitButton.Add_Click({ $form.Close() })
     $form.Controls.Add($exitButton)
 
@@ -435,8 +445,9 @@ Do you want to continue with these assumptions?
         # Map GUI selections to module parameters
         $tableAction = switch ($tableActionComboBox.SelectedIndex) {
             0 { "Recreate" }
-            1 { "Skip" }
-            2 { "Truncate" }
+            1 { "Truncate" }
+            2 { "Skip" }
+            3 { "Recreate" }  # Ask not supported in GUI runspace, use Recreate
             default { "Recreate" }
         }
 
