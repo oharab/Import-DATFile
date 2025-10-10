@@ -8,15 +8,71 @@ This is a PowerShell-based data import utility that reads pipe-separated .dat fi
 
 ## Core Architecture
 
-### Modular Design (Refactored)
+### Modular Design (Refactored v2.0 - Private/Public Structure)
+
+**Module Structure:**
+The project now follows PowerShell best practices with a clear Private/Public folder separation:
+
+```
+Import-DATFile/
+├── SqlServerDataImport.psm1          # Root module loader (dot-sources all functions)
+├── SqlServerDataImport.psd1          # Module manifest
+│
+├── Public/                            # Public API (exported functions)
+│   └── Invoke-SqlServerDataImport.ps1    # Main entry point
+│
+├── Private/                           # Internal implementation (not exported)
+│   ├── Database/
+│   │   ├── Test-DatabaseConnection.ps1
+│   │   ├── New-DatabaseSchema.ps1
+│   │   ├── Test-TableExists.ps1
+│   │   ├── New-DatabaseTable.ps1
+│   │   ├── Remove-DatabaseTable.ps1
+│   │   └── Clear-DatabaseTable.ps1
+│   │
+│   ├── DataImport/
+│   │   ├── Read-DatFileLines.ps1
+│   │   ├── Add-DataTableRows.ps1
+│   │   ├── Invoke-SqlBulkCopy.ps1
+│   │   └── Import-DataFile.ps1
+│   │
+│   ├── Specification/
+│   │   ├── Get-DataPrefix.ps1
+│   │   └── Get-TableSpecifications.ps1
+│   │
+│   ├── PostInstall/
+│   │   └── Invoke-PostInstallScripts.ps1
+│   │
+│   └── Logging/
+│       ├── Write-ImportLog.ps1
+│       ├── Add-ImportSummary.ps1
+│       ├── Show-ImportSummary.ps1
+│       └── Clear-ImportSummary.ps1
+│
+├── Common/                            # Shared utilities
+│   ├── Import-DATFile.Common.psm1        # Common utilities module
+│   ├── Import-DATFile.Constants.ps1      # Configuration constants
+│   └── TypeMappings.psd1                 # Type mapping configuration
+│
+├── Import-CLI.ps1                     # Command-line interface
+└── Import-GUI.ps1                     # Windows Forms GUI
+```
+
+**Benefits of Private/Public Structure:**
+- **Clear API Surface**: Only `Invoke-SqlServerDataImport` is exported
+- **Better Organization**: Functions grouped by concern (Database, DataImport, etc.)
+- **Easier Testing**: Can test private functions independently
+- **Improved Maintainability**: Smaller, focused files (~100 lines each)
+- **Team Collaboration**: Reduced merge conflicts, easier code reviews
+- **Encapsulation**: Internal implementation details hidden from consumers
 
 **Core Modules:**
-- **SqlServerDataImport.psm1**: Main business logic module
-  - Refactored to follow DRY and SOLID principles
-  - Imports common utilities and type mappings
-  - Functions broken down for Single Responsibility Principle
-  - No UI dependencies - pure data processing
-  - Exports functions for use by CLI and GUI interfaces
+- **SqlServerDataImport.psm1**: Root module loader
+  - Dot-sources all Private and Public functions
+  - Loads Common utilities, Constants, and TypeMappings
+  - Exports only Public functions via manifest
+  - Initializes global variables ($script:ImportSummary)
+  - No business logic - pure loader pattern
 
 - **Import-DATFile.Common.psm1**: Shared utilities module (NEW)
   - Common functions used across CLI, GUI, and core module
