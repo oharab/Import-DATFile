@@ -248,6 +248,7 @@ WHERE TABLE_SCHEMA = @SchemaName AND TABLE_NAME = @TableName
 }
 
 function New-DatabaseSchema {
+    [CmdletBinding(SupportsShouldProcess=$true)]
     param(
         [Parameter(Mandatory=$true)]
         [string]$ConnectionString,
@@ -279,18 +280,24 @@ BEGIN
 END
 "@
 
-    try {
-        Invoke-Sqlcmd -ConnectionString $ConnectionString -Query $query -ErrorAction Stop
-        Write-Host "Schema '$SchemaName' is ready" -ForegroundColor Green
-        Write-ImportLog "Schema '$SchemaName' is ready" -Level "VERBOSE"
+    if ($PSCmdlet.ShouldProcess("Schema [$SchemaName]", "Create or verify schema")) {
+        try {
+            Invoke-Sqlcmd -ConnectionString $ConnectionString -Query $query -ErrorAction Stop
+            Write-Host "Schema '$SchemaName' is ready" -ForegroundColor Green
+            Write-ImportLog "Schema '$SchemaName' is ready" -Level "VERBOSE"
+        }
+        catch {
+            Write-ImportLog "Failed to create schema '$SchemaName': $($_.Exception.Message)" -Level "ERROR"
+            throw "Failed to create schema: $($_.Exception.Message)"
+        }
     }
-    catch {
-        Write-ImportLog "Failed to create schema '$SchemaName': $($_.Exception.Message)" -Level "ERROR"
-        throw "Failed to create schema: $($_.Exception.Message)"
+    else {
+        Write-Host "What if: Would create or verify schema [$SchemaName]" -ForegroundColor Cyan
     }
 }
 
 function New-DatabaseTable {
+    [CmdletBinding(SupportsShouldProcess=$true)]
     param(
         [Parameter(Mandatory=$true)]
         [string]$ConnectionString,
@@ -323,18 +330,26 @@ $($fieldDefinitions -join ",`n")
 )
 "@
 
-    try {
-        Invoke-Sqlcmd -ConnectionString $ConnectionString -Query $createTableQuery -ErrorAction Stop
-        Write-Host "Table [$SchemaName].[$TableName] created successfully" -ForegroundColor Green
-        Write-ImportLog "Table [$SchemaName].[$TableName] created successfully" -Level "VERBOSE"
+    if ($PSCmdlet.ShouldProcess("Table [$SchemaName].[$TableName]", "Create table")) {
+        try {
+            Invoke-Sqlcmd -ConnectionString $ConnectionString -Query $createTableQuery -ErrorAction Stop
+            Write-Host "Table [$SchemaName].[$TableName] created successfully" -ForegroundColor Green
+            Write-ImportLog "Table [$SchemaName].[$TableName] created successfully" -Level "VERBOSE"
+        }
+        catch {
+            Write-ImportLog "Failed to create table [$SchemaName].[$TableName]: $($_.Exception.Message)" -Level "ERROR"
+            throw "Failed to create table [$SchemaName].[$TableName]: $($_.Exception.Message)"
+        }
     }
-    catch {
-        Write-ImportLog "Failed to create table [$SchemaName].[$TableName]: $($_.Exception.Message)" -Level "ERROR"
-        throw "Failed to create table [$SchemaName].[$TableName]: $($_.Exception.Message)"
+    else {
+        Write-Host "`nWhat if: Would create table [$SchemaName].[$TableName]" -ForegroundColor Cyan
+        Write-Host "CREATE TABLE statement:" -ForegroundColor Yellow
+        Write-Host $createTableQuery -ForegroundColor Gray
     }
 }
 
 function Remove-DatabaseTable {
+    [CmdletBinding(SupportsShouldProcess=$true)]
     param(
         [Parameter(Mandatory=$true)]
         [string]$ConnectionString,
@@ -349,18 +364,24 @@ function Remove-DatabaseTable {
     Write-ImportLog "Dropping table [$SchemaName].[$TableName]" -Level "VERBOSE"
     $dropQuery = "DROP TABLE [$SchemaName].[$TableName]"
 
-    try {
-        Invoke-Sqlcmd -ConnectionString $ConnectionString -Query $dropQuery -ErrorAction Stop
-        Write-Host "Table [$SchemaName].[$TableName] dropped successfully" -ForegroundColor Green
-        Write-ImportLog "Table [$SchemaName].[$TableName] dropped successfully" -Level "VERBOSE"
+    if ($PSCmdlet.ShouldProcess("Table [$SchemaName].[$TableName]", "Drop table (DELETES ALL DATA)")) {
+        try {
+            Invoke-Sqlcmd -ConnectionString $ConnectionString -Query $dropQuery -ErrorAction Stop
+            Write-Host "Table [$SchemaName].[$TableName] dropped successfully" -ForegroundColor Green
+            Write-ImportLog "Table [$SchemaName].[$TableName] dropped successfully" -Level "VERBOSE"
+        }
+        catch {
+            Write-ImportLog "Failed to drop table [$SchemaName].[$TableName]: $($_.Exception.Message)" -Level "ERROR"
+            throw "Failed to drop table [$SchemaName].[$TableName]: $($_.Exception.Message)"
+        }
     }
-    catch {
-        Write-ImportLog "Failed to drop table [$SchemaName].[$TableName]: $($_.Exception.Message)" -Level "ERROR"
-        throw "Failed to drop table [$SchemaName].[$TableName]: $($_.Exception.Message)"
+    else {
+        Write-Host "What if: Would DROP table [$SchemaName].[$TableName] (ALL DATA WOULD BE LOST)" -ForegroundColor Yellow
     }
 }
 
 function Clear-DatabaseTable {
+    [CmdletBinding(SupportsShouldProcess=$true)]
     param(
         [Parameter(Mandatory=$true)]
         [string]$ConnectionString,
@@ -375,14 +396,19 @@ function Clear-DatabaseTable {
     Write-ImportLog "Truncating table [$SchemaName].[$TableName]" -Level "VERBOSE"
     $truncateQuery = "TRUNCATE TABLE [$SchemaName].[$TableName]"
 
-    try {
-        Invoke-Sqlcmd -ConnectionString $ConnectionString -Query $truncateQuery -ErrorAction Stop
-        Write-Host "Table [$SchemaName].[$TableName] truncated successfully" -ForegroundColor Green
-        Write-ImportLog "Table [$SchemaName].[$TableName] truncated successfully" -Level "VERBOSE"
+    if ($PSCmdlet.ShouldProcess("Table [$SchemaName].[$TableName]", "Truncate table (DELETES ALL DATA)")) {
+        try {
+            Invoke-Sqlcmd -ConnectionString $ConnectionString -Query $truncateQuery -ErrorAction Stop
+            Write-Host "Table [$SchemaName].[$TableName] truncated successfully" -ForegroundColor Green
+            Write-ImportLog "Table [$SchemaName].[$TableName] truncated successfully" -Level "VERBOSE"
+        }
+        catch {
+            Write-ImportLog "Failed to truncate table [$SchemaName].[$TableName]: $($_.Exception.Message)" -Level "ERROR"
+            throw "Failed to truncate table [$SchemaName].[$TableName]: $($_.Exception.Message)"
+        }
     }
-    catch {
-        Write-ImportLog "Failed to truncate table [$SchemaName].[$TableName]: $($_.Exception.Message)" -Level "ERROR"
-        throw "Failed to truncate table [$SchemaName].[$TableName]: $($_.Exception.Message)"
+    else {
+        Write-Host "What if: Would TRUNCATE table [$SchemaName].[$TableName] (ALL DATA WOULD BE DELETED)" -ForegroundColor Yellow
     }
 }
 
@@ -391,6 +417,7 @@ function Clear-DatabaseTable {
 #region Data Import Functions
 
 function Import-DataFile {
+    [CmdletBinding(SupportsShouldProcess=$true)]
     param(
         [Parameter(Mandatory=$true)]
         [string]$ConnectionString,
@@ -588,58 +615,59 @@ function Import-DataFile {
         $currentLineIndex++
     }
 
-    # Perform bulk copy
-    try {
-        $connection = New-Object System.Data.SqlClient.SqlConnection($ConnectionString)
-        $connection.Open()
+    # Perform bulk copy (or skip if WhatIf)
+    if ($PSCmdlet.ShouldProcess("[$SchemaName].[$TableName]", "Import $rowCount rows from $fileName")) {
+        try {
+            $connection = New-Object System.Data.SqlClient.SqlConnection($ConnectionString)
+            $connection.Open()
 
-        # Verify SQL table columns exist
-        Write-Host "Verifying SQL table columns..." -ForegroundColor Yellow
-        $sqlTableColumnsQuery = @"
+            # Verify SQL table columns exist
+            Write-Host "Verifying SQL table columns..." -ForegroundColor Yellow
+            $sqlTableColumnsQuery = @"
 SELECT COLUMN_NAME
 FROM INFORMATION_SCHEMA.COLUMNS
 WHERE TABLE_SCHEMA = '$SchemaName' AND TABLE_NAME = '$TableName'
 ORDER BY ORDINAL_POSITION
 "@
-        $sqlTableColumns = Invoke-Sqlcmd -ConnectionString $ConnectionString -Query $sqlTableColumnsQuery
-        $sqlColumnNames = $sqlTableColumns.COLUMN_NAME
+            $sqlTableColumns = Invoke-Sqlcmd -ConnectionString $ConnectionString -Query $sqlTableColumnsQuery
+            $sqlColumnNames = $sqlTableColumns.COLUMN_NAME
 
-        Write-Host "SQL Table Columns: $($sqlColumnNames -join ', ')" -ForegroundColor Gray
-        Write-Host "DataTable Columns: $($dataTable.Columns.ColumnName -join ', ')" -ForegroundColor Gray
+            Write-Host "SQL Table Columns: $($sqlColumnNames -join ', ')" -ForegroundColor Gray
+            Write-Host "DataTable Columns: $($dataTable.Columns.ColumnName -join ', ')" -ForegroundColor Gray
 
-        # Check for mismatches
-        foreach ($dtColumn in $dataTable.Columns) {
-            if ($dtColumn.ColumnName -notin $sqlColumnNames) {
-                Write-Host "WARNING: DataTable column '$($dtColumn.ColumnName)' not found in SQL table!" -ForegroundColor Red
+            # Check for mismatches
+            foreach ($dtColumn in $dataTable.Columns) {
+                if ($dtColumn.ColumnName -notin $sqlColumnNames) {
+                    Write-Host "WARNING: DataTable column '$($dtColumn.ColumnName)' not found in SQL table!" -ForegroundColor Red
+                }
             }
+
+            $bulkCopy = New-Object System.Data.SqlClient.SqlBulkCopy($connection)
+            $bulkCopy.DestinationTableName = "[$SchemaName].[$TableName]"
+            $bulkCopy.BatchSize = 10000
+            $bulkCopy.BulkCopyTimeout = 300  # 5 minutes
+
+            Write-ImportLog "Setting up column mappings for $($dataTable.Columns.Count) columns" -Level "DEBUG"
+
+            # Map each column from DataTable to SQL table
+            foreach ($column in $dataTable.Columns) {
+                $columnName = $column.ColumnName
+                Write-Host "  Mapping column: $columnName (Type: $($column.DataType.Name))" -ForegroundColor Gray
+                $bulkCopy.ColumnMappings.Add($columnName, $columnName) | Out-Null
+            }
+
+            Write-Host "Starting bulk copy operation..." -ForegroundColor Yellow
+            $bulkCopy.WriteToServer($dataTable)
+
+            $bulkCopy.Close()
+            $connection.Close()
+
+            Write-Host "Successfully imported $rowCount rows into [$SchemaName].[$TableName]" -ForegroundColor Green
+            Write-ImportLog "Successfully imported $rowCount rows into [$SchemaName].[$TableName]" -Level "VERBOSE"
+
+            return $rowCount
         }
-
-        $bulkCopy = New-Object System.Data.SqlClient.SqlBulkCopy($connection)
-        $bulkCopy.DestinationTableName = "[$SchemaName].[$TableName]"
-        $bulkCopy.BatchSize = 10000
-        $bulkCopy.BulkCopyTimeout = 300  # 5 minutes
-
-        Write-ImportLog "Setting up column mappings for $($dataTable.Columns.Count) columns" -Level "DEBUG"
-
-        # Map each column from DataTable to SQL table
-        foreach ($column in $dataTable.Columns) {
-            $columnName = $column.ColumnName
-            Write-Host "  Mapping column: $columnName (Type: $($column.DataType.Name))" -ForegroundColor Gray
-            $bulkCopy.ColumnMappings.Add($columnName, $columnName) | Out-Null
-        }
-
-        Write-Host "Starting bulk copy operation..." -ForegroundColor Yellow
-        $bulkCopy.WriteToServer($dataTable)
-
-        $bulkCopy.Close()
-        $connection.Close()
-
-        Write-Host "Successfully imported $rowCount rows into [$SchemaName].[$TableName]" -ForegroundColor Green
-        Write-ImportLog "Successfully imported $rowCount rows into [$SchemaName].[$TableName]" -Level "VERBOSE"
-
-        return $rowCount
-    }
-    catch {
+        catch {
         Write-ImportLog "Bulk copy failed: $($_.Exception.Message)" -Level "ERROR"
         Write-Host "`nBulk Copy Error Details:" -ForegroundColor Red
         Write-Host "Table: [$SchemaName].[$TableName]" -ForegroundColor Red
@@ -655,11 +683,18 @@ ORDER BY ORDINAL_POSITION
             $connection.Close()
         }
         throw
-    }
-    finally {
-        if ($dataTable) {
-            $dataTable.Dispose()
         }
+        finally {
+            if ($dataTable) {
+                $dataTable.Dispose()
+            }
+        }
+    }
+    else {
+        # WhatIf mode - parse file and count rows, but don't import
+        Write-Host "What if: Would import $rowCount rows from $fileName into [$SchemaName].[$TableName]" -ForegroundColor Cyan
+        Write-Host "  File parsed successfully: $rowCount rows would be imported" -ForegroundColor Gray
+        return $rowCount
     }
 }
 
@@ -864,7 +899,7 @@ function Invoke-PostInstallScripts {
 #region Main Import Function
 
 function Invoke-SqlServerDataImport {
-    [CmdletBinding()]
+    [CmdletBinding(SupportsShouldProcess=$true)]
     param(
         [Parameter(Mandatory=$true)]
         [string]$DataFolder,

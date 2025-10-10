@@ -1,7 +1,7 @@
 # SQL Server Data Import - Optimized Command Line Interface
 # Simplified CLI that uses the optimized SqlServerDataImport module
 
-[CmdletBinding()]
+[CmdletBinding(SupportsShouldProcess=$true)]
 param(
     [string]$DataFolder,
     [string]$ExcelSpecFile,
@@ -254,6 +254,12 @@ try {
         if ($PSCmdlet.MyInvocation.BoundParameters['Verbose']) {
             $importParams.Verbose = $true
             Write-Host "Verbose logging enabled - detailed operational information will be displayed" -ForegroundColor Cyan
+        }
+
+        # Pass through WhatIf parameter if specified
+        if ($PSCmdlet.MyInvocation.BoundParameters['WhatIf']) {
+            $importParams.WhatIf = $true
+            Write-Host "WhatIf mode enabled - no database changes will be made" -ForegroundColor Cyan
         }
 
         $summary = Invoke-SqlServerDataImport @importParams

@@ -162,6 +162,7 @@ When run without parameters, the script prompts for:
 - `-Force`: Switch parameter - automatically drops and recreates all tables without prompting (WARNING: deletes existing data)
 - `-PostInstallScripts`: Path to folder containing SQL template files, or path to a single SQL file (optional - executed after import completes)
 - `-Verbose`: Switch parameter (PowerShell common parameter) - enables detailed operational logging (shows VERBOSE and DEBUG level messages)
+- `-WhatIf`: Switch parameter (PowerShell common parameter) - shows what would happen without making any database changes
 
 ### Authentication Behavior
 - **No Username parameter** → Automatically uses Windows Authentication (Integrated Security)
@@ -272,6 +273,60 @@ $VerbosePreference = 'Continue'
 - **ERROR** (Red) - Critical failures (always shown)
 - **VERBOSE** (Cyan) - Detailed operational information (verbose mode only)
 - **DEBUG** (Gray) - Very detailed debugging information (verbose mode only)
+
+### WhatIf Mode (Dry Run)
+Uses PowerShell's standard `-WhatIf` common parameter to preview what the import would do without making any actual database changes. Perfect for validating data before committing to the import.
+
+**What WhatIf mode does:**
+- ✓ **Parses all data files** - Reads and validates file structure
+- ✓ **Counts rows** - Reports how many rows would be imported from each file
+- ✓ **Shows CREATE TABLE statements** - Displays the exact SQL that would be executed
+- ✓ **Warns about destructive operations** - Shows if tables would be dropped or truncated
+- ✓ **Validates data types** - Processes type conversions to catch errors
+- ✗ **Does NOT connect to database** (except for Test-DatabaseConnection)
+- ✗ **Does NOT create schemas or tables**
+- ✗ **Does NOT import any data**
+- ✗ **Does NOT execute post-install scripts**
+
+**When to use WhatIf mode:**
+- Testing import configuration before running for real
+- Validating data file format and structure
+- Reviewing CREATE TABLE statements before execution
+- Estimating row counts for capacity planning
+- Ensuring Force mode won't accidentally delete data
+- Training or demonstration purposes
+
+**Usage:**
+```powershell
+# Dry run - see what would happen
+.\Import-CLI.ps1 -DataFolder "C:\Data" -Server "localhost" -Database "MyDB" -WhatIf
+
+# Combine with Verbose for maximum detail
+.\Import-CLI.ps1 -DataFolder "C:\Data" -Server "localhost" -Database "MyDB" -WhatIf -Verbose
+
+# Test Force mode without actually dropping tables
+.\Import-CLI.ps1 -DataFolder "C:\Data" -Server "localhost" -Database "MyDB" -Force -WhatIf
+```
+
+**WhatIf Output Examples:**
+```
+What if: Would create or verify schema [ACME2024]
+What if: Would DROP table [ACME2024].[Employee] (ALL DATA WOULD BE LOST)
+
+What if: Would create table [ACME2024].[Employee]
+CREATE TABLE statement:
+CREATE TABLE [ACME2024].[Employee] (
+    [ImportID] VARCHAR(255),
+    [FirstName] VARCHAR(100),
+    [LastName] VARCHAR(100),
+    ...
+)
+
+What if: Would import 1,234 rows from ACME2024Employee.dat into [ACME2024].[Employee]
+  File parsed successfully: 1,234 rows would be imported
+```
+
+**Note:** WhatIf mode is not available in the GUI - use CLI for dry run testing.
 
 ### Prerequisites
 ```powershell
