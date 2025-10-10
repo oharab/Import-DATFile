@@ -288,7 +288,11 @@ The script has been **OPTIMIZED** for maximum speed by removing all legacy fallb
 2. **Exact Field Counts**: Field count MUST be exactly ImportID + specification fields
 3. **No Fallbacks**: Import fails immediately if SqlBulkCopy encounters issues
 4. **No File Logging**: Only console output for speed
-5. **Database Export Format**: Data is assumed to be correctly formatted from database export
+5. **Single-Line Records**: Each record MUST be on a single line
+   - ⚠️ **Fields with embedded newlines (CR/LF) are NOT supported**
+   - Use escaped newlines (`\n` as text) or remove newlines from source data
+   - See troubleshooting section for workarounds
+6. **Database Export Format**: Data is assumed to be correctly formatted from database export
    - **Dates**: Multiple formats supported (tries in order):
      - `yyyy-MM-dd HH:mm:ss.fff` (preferred)
      - `yyyy-MM-dd HH:mm:ss.ff`
@@ -450,6 +454,23 @@ $specs = Get-TableSpecifications -ExcelPath "C:\TestData\ExportSpec.xlsx"
   - `NULL`, `null`, `Null`
   - `NA`, `na`
   - `N/A`, `n/a`
+
+**Issue: Field count mismatch with multi-line fields (CRITICAL LIMITATION)**
+- **Current limitation**: Fields with embedded newlines (CR/LF) are NOT supported
+- The code uses `Get-Content` which treats newlines as record separators
+- If a field contains actual newline characters, import will fail with "Field count mismatch"
+- **Workarounds**:
+  1. **Database export**: Use REPLACE to remove newlines during export:
+     ```sql
+     SELECT REPLACE(REPLACE(field, CHAR(13), ' '), CHAR(10), ' ') as field
+     ```
+  2. **Pre-process file**: Replace newlines with spaces:
+     ```powershell
+     (Get-Content $file -Raw) -replace '(\|[^|]*)\r?\n([^|]*\|)', '$1 $2' | Set-Content $file
+     ```
+  3. **Escaped newlines**: If your export uses `\n` or `\r\n` as literal text (not actual characters), current code works fine
+- **Detection**: If you get field count errors and suspect embedded newlines, check your data visually
+- See MULTILINE_FIELD_SOLUTION.md for detailed solutions
 
 **Issue: Connection errors**
 - Test connectivity: `Test-NetConnection -ComputerName servername -Port 1433`
