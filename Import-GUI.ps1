@@ -76,7 +76,7 @@ function Show-ImportGUI {
     $warningLabel.Text = @"
 • Every data file MUST have ImportID as the first field
 • Field count MUST match exactly: ImportID + specification fields
-• Import FAILS immediately if field counts don't match (shows problematic line)
+• Multi-line fields with embedded newlines are fully supported
 • Only SqlBulkCopy is used - no fallback to INSERT statements
 • Dates: yyyy-MM-dd format | Decimals: period separator | NULL: case-insensitive
 • No file logging for maximum speed - console output only
@@ -394,7 +394,7 @@ Ask: Prompt for each table (CLI-only, defaults to Recreate in GUI)
 OPTIMIZED IMPORT ASSUMPTIONS:
 • Every data file MUST have ImportID as first field
 • Field count MUST match exactly (ImportID + spec fields)
-• Import will FAIL immediately on field mismatches
+• Multi-line fields with embedded newlines are fully supported
 • Only SqlBulkCopy (no INSERT fallback)
 • No file logging for maximum speed
 

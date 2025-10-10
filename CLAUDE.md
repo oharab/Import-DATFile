@@ -288,10 +288,11 @@ The script has been **OPTIMIZED** for maximum speed by removing all legacy fallb
 2. **Exact Field Counts**: Field count MUST be exactly ImportID + specification fields
 3. **No Fallbacks**: Import fails immediately if SqlBulkCopy encounters issues
 4. **No File Logging**: Only console output for speed
-5. **Single-Line Records**: Each record MUST be on a single line
-   - ⚠️ **Fields with embedded newlines (CR/LF) are NOT supported**
-   - Use escaped newlines (`\n` as text) or remove newlines from source data
-   - See troubleshooting section for workarounds
+5. **Multi-Line Field Support**: Records can span multiple lines if fields contain embedded newlines
+   - ✓ **Fields with embedded newlines (CR/LF) are now fully supported**
+   - Parser automatically accumulates lines until expected field count is reached
+   - Embedded newlines are preserved in field values
+   - Console output shows when multi-line records are detected (e.g., "Multi-line record at line 15 (spans 3 lines)")
 6. **Database Export Format**: Data is assumed to be correctly formatted from database export
    - **Dates**: Multiple formats supported (tries in order):
      - `yyyy-MM-dd HH:mm:ss.fff` (preferred)
@@ -455,22 +456,21 @@ $specs = Get-TableSpecifications -ExcelPath "C:\TestData\ExportSpec.xlsx"
   - `NA`, `na`
   - `N/A`, `n/a`
 
-**Issue: Field count mismatch with multi-line fields (CRITICAL LIMITATION)**
-- **Current limitation**: Fields with embedded newlines (CR/LF) are NOT supported
-- The code uses `Get-Content` which treats newlines as record separators
-- If a field contains actual newline characters, import will fail with "Field count mismatch"
-- **Workarounds**:
-  1. **Database export**: Use REPLACE to remove newlines during export:
-     ```sql
-     SELECT REPLACE(REPLACE(field, CHAR(13), ' '), CHAR(10), ' ') as field
-     ```
-  2. **Pre-process file**: Replace newlines with spaces:
-     ```powershell
-     (Get-Content $file -Raw) -replace '(\|[^|]*)\r?\n([^|]*\|)', '$1 $2' | Set-Content $file
-     ```
-  3. **Escaped newlines**: If your export uses `\n` or `\r\n` as literal text (not actual characters), current code works fine
-- **Detection**: If you get field count errors and suspect embedded newlines, check your data visually
-- See MULTILINE_FIELD_SOLUTION.md for detailed solutions
+**Multi-line Fields with Embedded Newlines (FULLY SUPPORTED)**
+- ✓ **Fields with embedded newlines (CR/LF) are now fully supported**
+- The parser automatically accumulates lines when it detects insufficient field counts
+- Records can span multiple lines in the .dat file
+- Embedded newlines are preserved in the imported data
+- **How it works**:
+  1. Parser reads a line and splits by pipe delimiter
+  2. If field count is less than expected, reads the next line and appends it
+  3. Continues accumulating until expected field count is reached
+  4. Console shows diagnostic message for multi-line records (e.g., "Multi-line record at line 15 (spans 3 lines)")
+- **Error handling**: If accumulated lines still don't match expected field count, detailed error message shows:
+  - Start and end line numbers
+  - Number of lines consumed
+  - First 200 characters of accumulated content for debugging
+- See MULTILINE_FIELD_SOLUTION.md for technical implementation details
 
 **Issue: Connection errors**
 - Test connectivity: `Test-NetConnection -ComputerName servername -Port 1433`

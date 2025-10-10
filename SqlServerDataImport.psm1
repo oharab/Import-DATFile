@@ -423,21 +423,47 @@ function Import-DataFile {
     # Expected field count = ImportID (from file) + spec fields
     $expectedFieldCount = $Fields.Count + 1
 
-    # Populate DataTable with data
+    # Populate DataTable with data using multi-line field support
     $rowCount = 0
-    $lineNumber = 0
+    $totalLines = $lines.Count
+    $currentLineIndex = 0
 
-    foreach ($line in $lines) {
-        $lineNumber++
-        if ([string]::IsNullOrWhiteSpace($line)) { continue }
+    while ($currentLineIndex -lt $totalLines) {
+        $startLineNumber = $currentLineIndex + 1
+        $currentLine = $lines[$currentLineIndex]
 
-        $values = $line -split '\|'
+        # Skip empty lines at the start of a record
+        if ([string]::IsNullOrWhiteSpace($currentLine)) {
+            $currentLineIndex++
+            continue
+        }
 
-        # Strict field count validation
+        # Start building the record from current line
+        $accumulatedLine = $currentLine
+        $values = $accumulatedLine -split '\|', -1  # -1 to keep empty trailing fields
+        $linesConsumed = 1
+
+        # Keep reading and accumulating lines until we have enough fields
+        while ($values.Length -lt $expectedFieldCount -and ($currentLineIndex + 1) -lt $totalLines) {
+            $currentLineIndex++
+            $nextLine = $lines[$currentLineIndex]
+            # Preserve the newline when accumulating (this is the embedded newline in the field)
+            $accumulatedLine += "`n" + $nextLine
+            $values = $accumulatedLine -split '\|', -1
+            $linesConsumed++
+        }
+
+        # Validate final field count
         if ($values.Length -ne $expectedFieldCount) {
-            Write-ImportLog "Field count mismatch at line $lineNumber. Expected $expectedFieldCount, got $($values.Length)" -Level "ERROR"
-            Write-Host "FAILED LINE $lineNumber`: $line" -ForegroundColor Red
-            throw "Field count mismatch at line $lineNumber. Expected $expectedFieldCount fields, got $($values.Length). Line: $line"
+            $endLineNumber = $startLineNumber + $linesConsumed - 1
+            Write-ImportLog "Field count mismatch at lines $startLineNumber-$endLineNumber. Expected $expectedFieldCount, got $($values.Length)" -Level "ERROR"
+            Write-Host "FAILED at line $startLineNumber (consumed $linesConsumed lines)" -ForegroundColor Red
+            Write-Host "Accumulated content: $($accumulatedLine.Substring(0, [Math]::Min(200, $accumulatedLine.Length)))..." -ForegroundColor Red
+            throw "Field count mismatch at lines $startLineNumber-$endLineNumber. Expected $expectedFieldCount fields, got $($values.Length)."
+        }
+
+        if ($linesConsumed -gt 1) {
+            Write-Host "  Multi-line record at line $startLineNumber (spans $linesConsumed lines)" -ForegroundColor Cyan
         }
 
         # Create DataRow and populate with values
@@ -511,7 +537,7 @@ function Import-DataFile {
                             '^(1|TRUE|YES|Y|T)$' { $dataRow[$fieldName] = $true }
                             '^(0|FALSE|NO|N|F)$' { $dataRow[$fieldName] = $false }
                             default {
-                                Write-ImportLog "Invalid boolean value '$value' for field '$fieldName' at line $lineNumber. Using False." -Level "WARNING"
+                                Write-ImportLog "Invalid boolean value '$value' for field '$fieldName' at line $startLineNumber. Using False." -Level "WARNING"
                                 $dataRow[$fieldName] = $false
                             }
                         }
@@ -522,7 +548,7 @@ function Import-DataFile {
                     }
                 }
                 catch {
-                    Write-ImportLog "Error converting value '$value' for field '$fieldName' at line $lineNumber. Expected type: $($columnType.Name). Error: $($_.Exception.Message)" -Level "WARNING"
+                    Write-ImportLog "Error converting value '$value' for field '$fieldName' at line $startLineNumber. Expected type: $($columnType.Name). Error: $($_.Exception.Message)" -Level "WARNING"
                     # Assign as string and let SqlBulkCopy try to handle it
                     $dataRow[$fieldName] = $value
                 }
@@ -535,6 +561,9 @@ function Import-DataFile {
         if ($rowCount % 10000 -eq 0) {
             Write-Host "  Processed $rowCount rows..." -ForegroundColor Gray
         }
+
+        # Move to next record (may have already advanced during multi-line accumulation)
+        $currentLineIndex++
     }
 
     # Perform bulk copy
