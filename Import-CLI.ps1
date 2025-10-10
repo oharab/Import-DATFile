@@ -1,6 +1,7 @@
 # SQL Server Data Import - Optimized Command Line Interface
 # Simplified CLI that uses the optimized SqlServerDataImport module
 
+[CmdletBinding()]
 param(
     [string]$DataFolder,
     [string]$ExcelSpecFile,
@@ -9,8 +10,7 @@ param(
     [string]$Username,
     [string]$Password,
     [switch]$Force,
-    [string]$PostInstallScripts,
-    [switch]$VerboseLogging
+    [string]$PostInstallScripts
 )
 
 # Import the SqlServerDataImport module
@@ -250,8 +250,8 @@ try {
             Write-Host "Post-install scripts will be executed from: $PostInstallScripts" -ForegroundColor Cyan
         }
 
-        # Add Verbose flag if specified
-        if ($VerboseLogging) {
+        # Pass through Verbose parameter if specified
+        if ($PSCmdlet.MyInvocation.BoundParameters['Verbose']) {
             $importParams.Verbose = $true
             Write-Host "Verbose logging enabled - detailed operational information will be displayed" -ForegroundColor Cyan
         }

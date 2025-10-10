@@ -864,6 +864,7 @@ function Invoke-PostInstallScripts {
 #region Main Import Function
 
 function Invoke-SqlServerDataImport {
+    [CmdletBinding()]
     param(
         [Parameter(Mandatory=$true)]
         [string]$DataFolder,
@@ -879,13 +880,11 @@ function Invoke-SqlServerDataImport {
         [ValidateSet("Ask", "Skip", "Truncate", "Recreate")]
         [string]$TableExistsAction = "Ask",
 
-        [string]$PostInstallScripts,
-
-        [switch]$Verbose
+        [string]$PostInstallScripts
     )
 
-    # Set global verbose logging flag
-    $script:VerboseLogging = $Verbose.IsPresent
+    # Set global verbose logging flag based on PowerShell's built-in Verbose preference
+    $script:VerboseLogging = ($PSCmdlet.MyInvocation.BoundParameters['Verbose'] -eq $true) -or ($VerbosePreference -eq 'Continue')
 
     # Clear previous summary
     Clear-ImportSummary

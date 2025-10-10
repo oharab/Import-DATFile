@@ -486,7 +486,12 @@ Do you want to continue with these assumptions?
         $global:ImportRunspace.SessionStateProxy.SetVariable("SchemaName", $schemaName)
         $global:ImportRunspace.SessionStateProxy.SetVariable("TableAction", $tableAction)
         $global:ImportRunspace.SessionStateProxy.SetVariable("PostInstallScripts", $postInstallTextBox.Text)
-        $global:ImportRunspace.SessionStateProxy.SetVariable("VerboseLogging", $verboseCheckBox.Checked)
+        # Set VerbosePreference in the runspace if verbose logging is enabled
+        if ($verboseCheckBox.Checked) {
+            $global:ImportRunspace.SessionStateProxy.SetVariable("VerbosePreference", "Continue")
+        } else {
+            $global:ImportRunspace.SessionStateProxy.SetVariable("VerbosePreference", "SilentlyContinue")
+        }
         $global:ImportRunspace.SessionStateProxy.SetVariable("ModulePath", $modulePath)
 
         $global:ImportPowerShell = [powershell]::Create()
@@ -513,8 +518,8 @@ Do you want to continue with these assumptions?
                     $importParams.PostInstallScripts = $PostInstallScripts
                 }
 
-                # Add Verbose flag if enabled
-                if ($VerboseLogging) {
+                # Add Verbose flag if enabled (VerbosePreference is set in runspace)
+                if ($VerbosePreference -eq 'Continue') {
                     $importParams.Verbose = $true
                 }
 

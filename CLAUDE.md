@@ -161,7 +161,7 @@ When run without parameters, the script prompts for:
 - `-Password`: SQL Server authentication password (optional - if not provided but Username is, will prompt securely)
 - `-Force`: Switch parameter - automatically drops and recreates all tables without prompting (WARNING: deletes existing data)
 - `-PostInstallScripts`: Path to folder containing SQL template files, or path to a single SQL file (optional - executed after import completes)
-- `-VerboseLogging`: Switch parameter - enables detailed operational logging (shows VERBOSE and DEBUG level messages)
+- `-Verbose`: Switch parameter (PowerShell common parameter) - enables detailed operational logging (shows VERBOSE and DEBUG level messages)
 
 ### Authentication Behavior
 - **No Username parameter** → Automatically uses Windows Authentication (Integrated Security)
@@ -230,7 +230,7 @@ GO
 - Logs all operations with timestamps
 
 ### Verbose Logging
-Enables detailed operational information during import. Useful for troubleshooting and understanding exactly what the import process is doing.
+Uses PowerShell's standard `-Verbose` common parameter to enable detailed operational information during import. This follows PowerShell best practices and integrates with the built-in verbose logging system.
 
 **When to use verbose logging:**
 - Troubleshooting import issues
@@ -250,11 +250,15 @@ Enables detailed operational information during import. Useful for troubleshooti
 
 **Usage:**
 ```powershell
-# Enable verbose logging in CLI
-.\Import-CLI.ps1 -DataFolder "C:\Data" -Server "localhost" -Database "MyDB" -VerboseLogging
+# Enable verbose logging in CLI (using PowerShell's standard -Verbose parameter)
+.\Import-CLI.ps1 -DataFolder "C:\Data" -Server "localhost" -Database "MyDB" -Verbose
 
 # Combine with other parameters
-.\Import-CLI.ps1 -DataFolder "C:\Data" -Server "localhost" -Database "MyDB" -Force -PostInstallScripts "C:\Scripts" -VerboseLogging
+.\Import-CLI.ps1 -DataFolder "C:\Data" -Server "localhost" -Database "MyDB" -Force -PostInstallScripts "C:\Scripts" -Verbose
+
+# Alternative: Set $VerbosePreference before calling
+$VerbosePreference = 'Continue'
+.\Import-CLI.ps1 -DataFolder "C:\Data" -Server "localhost" -Database "MyDB"
 ```
 
 **GUI Usage:**
