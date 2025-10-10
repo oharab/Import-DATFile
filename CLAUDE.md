@@ -291,6 +291,7 @@ The script has been **OPTIMIZED** for maximum speed by removing all legacy fallb
 5. **Database Export Format**: Data is assumed to be correctly formatted from database export
    - Dates in format: `yyyy-mm-dd hh:mm:ss.mmm`
    - Numeric values in standard formats
+   - Boolean values: `1`, `0`, `TRUE`, `FALSE`, `YES`, `NO`, `Y`, `N`, `T`, `F` (case insensitive)
    - NULL values as empty string or "NULL"
 
 **Performance Improvements:**
@@ -312,10 +313,11 @@ The script has been **OPTIMIZED** for maximum speed by removing all legacy fallb
 ## Development Notes
 
 - **OPTIMIZED VERSION**: High-performance SqlBulkCopy ONLY (no fallbacks)
-- **Proper type handling**: DataTable columns use correct .NET types (DateTime, Int32, Decimal, String)
+- **Proper type handling**: DataTable columns use correct .NET types (DateTime, Int32, Decimal, Boolean, String)
   - Enables proper conversion from string data to typed values
   - DateTime parsing for `yyyy-mm-dd hh:mm:ss.mmm` format
   - Numeric type conversion for INT, BIGINT, DECIMAL, MONEY
+  - Boolean conversion handles: 1/0, TRUE/FALSE, YES/NO, Y/N, T/F (case insensitive)
   - Graceful fallback with warnings for conversion errors
 - **Minimal memory footprint**: Optimized DataTable structures for large datasets
 - **SQL injection protection**: Via parameter escaping and schema validation
@@ -398,6 +400,12 @@ $specs = Get-TableSpecifications -ExcelPath "C:\TestData\ExportSpec.xlsx"
 - Example valid formats:
   - `2024-01-15 14:30:25.123`
   - `2024-01-15 00:00:00.000` (for DATE types)
+
+**Issue: Boolean conversion errors**
+- Boolean fields support multiple formats: `1`, `0`, `TRUE`, `FALSE`, `YES`, `NO`, `Y`, `N`, `T`, `F`
+- All formats are case insensitive
+- Invalid values default to `false` with a warning
+- Check console for conversion warnings if booleans seem incorrect
 
 **Issue: Connection errors**
 - Test connectivity: `Test-NetConnection -ComputerName servername -Port 1433`

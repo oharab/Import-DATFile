@@ -470,7 +470,15 @@ function Import-DataFile {
                         $dataRow[$fieldName] = [Decimal]::Parse($value)
                     }
                     elseif ($columnType -eq [System.Boolean]) {
-                        $dataRow[$fieldName] = [Boolean]::Parse($value)
+                        # Handle common boolean representations
+                        switch -Regex ($value.ToUpper()) {
+                            '^(1|TRUE|YES|Y|T)$' { $dataRow[$fieldName] = $true }
+                            '^(0|FALSE|NO|N|F)$' { $dataRow[$fieldName] = $false }
+                            default {
+                                Write-ImportLog "Invalid boolean value '$value' for field '$fieldName' at line $lineNumber. Using False." -Level "WARNING"
+                                $dataRow[$fieldName] = $false
+                            }
+                        }
                     }
                     else {
                         # String types - assign directly
