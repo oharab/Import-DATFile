@@ -1,36 +1,38 @@
-# SQL Server Data Import - Optimized Graphical User Interface
-# User-friendly Windows Forms interface using the optimized SqlServerDataImport module
+# SQL Server Data Import - Graphical User Interface (Refactored)
+# User-friendly Windows Forms interface using refactored SqlServerDataImport module
 
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
 
-# Import the SqlServerDataImport module
+#region Module Loading
+
+# Import common utilities module first
 $moduleDir = Split-Path $MyInvocation.MyCommand.Path
-$modulePath = Join-Path $moduleDir "SqlServerDataImport.psm1"
+$commonModulePath = Join-Path $moduleDir "Import-DATFile.Common.psm1"
 
-if (-not (Test-Path $modulePath)) {
-    [System.Windows.Forms.MessageBox]::Show("SqlServerDataImport.psm1 module not found at: $modulePath", "Error", "OK", "Error")
+if (-not (Test-Path $commonModulePath)) {
+    [System.Windows.Forms.MessageBox]::Show("Import-DATFile.Common.psm1 not found at: $commonModulePath", "Error", "OK", "Error")
     exit 1
 }
 
-Import-Module $modulePath -Force
+Import-Module $commonModulePath -Force
 
-# Check for required PowerShell modules
-try {
-    Import-Module SqlServer -ErrorAction Stop
-}
-catch {
-    [System.Windows.Forms.MessageBox]::Show("SqlServer module not found. Please install it using: Install-Module -Name SqlServer", "Missing Module", "OK", "Error")
+# Import core module
+$coreModulePath = Join-Path $moduleDir "SqlServerDataImport.psm1"
+if (-not (Test-Path $coreModulePath)) {
+    [System.Windows.Forms.MessageBox]::Show("SqlServerDataImport.psm1 module not found at: $coreModulePath", "Error", "OK", "Error")
     exit 1
 }
 
-try {
-    Import-Module ImportExcel -ErrorAction Stop
-}
-catch {
-    [System.Windows.Forms.MessageBox]::Show("ImportExcel module not found. Please install it using: Install-Module -Name ImportExcel", "Missing Module", "OK", "Error")
+Import-Module $coreModulePath -Force
+
+# Initialize required PowerShell modules (SqlServer, ImportExcel)
+if (-not (Initialize-ImportModules)) {
+    [System.Windows.Forms.MessageBox]::Show("Required modules (SqlServer, ImportExcel) not found. Please install using:`n`nInstall-Module -Name SqlServer, ImportExcel", "Missing Modules", "OK", "Error")
     exit 1
 }
+
+#endregion
 
 # Global variables
 $global:ImportRunspace = $null
@@ -39,7 +41,7 @@ $global:ImportPowerShell = $null
 function Show-ImportGUI {
     # Create main form
     $form = New-Object System.Windows.Forms.Form
-    $form.Text = "SQL Server Data Import Utility (Optimized)"
+    $form.Text = "SQL Server Data Import Utility (Refactored)"
     $form.Size = New-Object System.Drawing.Size(620, 760)
     $form.StartPosition = "CenterScreen"
     $form.FormBorderStyle = "FixedDialog"
@@ -48,7 +50,7 @@ function Show-ImportGUI {
 
     # Title label
     $titleLabel = New-Object System.Windows.Forms.Label
-    $titleLabel.Text = "SQL Server Data Import Utility (Optimized)"
+    $titleLabel.Text = "SQL Server Data Import Utility (Refactored)"
     $titleLabel.Font = New-Object System.Drawing.Font("Segoe UI", 14, [System.Drawing.FontStyle]::Bold)
     $titleLabel.Size = New-Object System.Drawing.Size(580, 30)
     $titleLabel.Location = New-Object System.Drawing.Point(10, 10)
@@ -434,17 +436,19 @@ Do you want to continue with these assumptions?
             return
         }
 
-        # Build connection string (handle password securely)
-        if ($authComboBox.SelectedIndex -eq 1) {
-            # Use SecureString for password to avoid plaintext storage
-            $securePassword = ConvertTo-SecureString $passwordTextBox.Text -AsPlainText -Force
-            $BSTR = [System.Runtime.InteropServices.Marshal]::SecureStringToBSTR($securePassword)
-            $password = [System.Runtime.InteropServices.Marshal]::PtrToStringAuto($BSTR)
-            $connectionString = "Server=$($serverTextBox.Text);Database=$($databaseTextBox.Text);User Id=$($usernameTextBox.Text);Password=$password;"
-            # Clear password from memory immediately
-            [System.Runtime.InteropServices.Marshal]::ZeroFreeBSTR($BSTR)
-        } else {
-            $connectionString = "Server=$($serverTextBox.Text);Database=$($databaseTextBox.Text);Integrated Security=True;"
+        # Build connection string using common module
+        try {
+            if ($authComboBox.SelectedIndex -eq 1) {
+                # SQL Server Authentication - use common module
+                $connectionString = New-SqlConnectionString -Server $serverTextBox.Text -Database $databaseTextBox.Text -Username $usernameTextBox.Text -Password $passwordTextBox.Text
+            } else {
+                # Windows Authentication - use common module
+                $connectionString = New-SqlConnectionString -Server $serverTextBox.Text -Database $databaseTextBox.Text
+            }
+        }
+        catch {
+            [System.Windows.Forms.MessageBox]::Show("Failed to build connection string: $($_.Exception.Message)", "Error", "OK", "Error")
+            return
         }
 
         # Test connection first
@@ -461,8 +465,8 @@ Do you want to continue with these assumptions?
         $startButton.Enabled = $false
         $cancelButton.Enabled = $true
         $progressBar.MarqueeAnimationSpeed = 30
-        $progressLabel.Text = "Optimized import in progress..."
-        $outputTextBox.AppendText("Starting optimized import process...`r`n")
+        $progressLabel.Text = "Import in progress..."
+        $outputTextBox.AppendText("Starting import process...`r`n")
 
         # Create a background runspace to execute the import
         $global:ImportRunspace = [runspacefactory]::CreateRunspace()
@@ -492,19 +496,20 @@ Do you want to continue with these assumptions?
         } else {
             $global:ImportRunspace.SessionStateProxy.SetVariable("VerbosePreference", "SilentlyContinue")
         }
-        $global:ImportRunspace.SessionStateProxy.SetVariable("ModulePath", $modulePath)
+        $global:ImportRunspace.SessionStateProxy.SetVariable("ModulePath", $coreModulePath)
+        $global:ImportRunspace.SessionStateProxy.SetVariable("CommonModulePath", $commonModulePath)
 
         $global:ImportPowerShell = [powershell]::Create()
         $global:ImportPowerShell.Runspace = $global:ImportRunspace
 
-        # Import script to run in background (simplified for optimized version)
+        # Import script to run in background
         $importScript = {
             try {
+                Import-Module $CommonModulePath -Force
                 Import-Module $ModulePath -Force
-                Import-Module SqlServer -Force
-                Import-Module ImportExcel -Force
+                Initialize-ImportModules | Out-Null
 
-                # Execute the optimized import
+                # Execute the import
                 $importParams = @{
                     DataFolder = $DataFolder
                     ExcelSpecFile = $ExcelSpecFile
@@ -527,7 +532,7 @@ Do you want to continue with these assumptions?
 
                 return @{
                     Success = $true
-                    Message = "Optimized import completed successfully"
+                    Message = "Import completed successfully"
                     Summary = $result
                 }
             }
@@ -557,10 +562,10 @@ Do you want to continue with these assumptions?
                     $result = $global:ImportPowerShell.EndInvoke($asyncResult)
 
                     if ($result.Success) {
-                        $progressLabel.Text = "Optimized import completed successfully!"
+                        $progressLabel.Text = "Import completed successfully!"
                         $progressLabel.ForegroundColor = [System.Drawing.Color]::Green
-                        $outputTextBox.AppendText("Optimized import completed successfully!`r`n")
-                        $outputTextBox.AppendText("$($result.Summary.Count) tables processed with ImportID assumption.`r`n")
+                        $outputTextBox.AppendText("Import completed successfully!`r`n")
+                        $outputTextBox.AppendText("$($result.Summary.Count) tables processed.`r`n")
                     } else {
                         $progressLabel.Text = "Import failed. Check output for details."
                         $progressLabel.ForegroundColor = [System.Drawing.Color]::Red

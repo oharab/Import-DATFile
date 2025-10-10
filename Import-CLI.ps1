@@ -1,5 +1,5 @@
-# SQL Server Data Import - Optimized Command Line Interface
-# Simplified CLI that uses the optimized SqlServerDataImport module
+# SQL Server Data Import - Command Line Interface (Refactored)
+# Uses refactored SqlServerDataImport module and common utilities
 
 [CmdletBinding(SupportsShouldProcess=$true)]
 param(
@@ -13,35 +13,48 @@ param(
     [string]$PostInstallScripts
 )
 
-# Import the SqlServerDataImport module
+#region Module Loading
+
+# Import common utilities module first
 $moduleDir = Split-Path $MyInvocation.MyCommand.Path
-$modulePath = Join-Path $moduleDir "SqlServerDataImport.psm1"
+$commonModulePath = Join-Path $moduleDir "Import-DATFile.Common.psm1"
 
-if (-not (Test-Path $modulePath)) {
-    Write-Host "ERROR: SqlServerDataImport.psm1 module not found at: $modulePath" -ForegroundColor Red
+if (-not (Test-Path $commonModulePath)) {
+    Write-Host "ERROR: Import-DATFile.Common.psm1 not found at: $commonModulePath" -ForegroundColor Red
     exit 1
 }
 
-Import-Module $modulePath -Force
+Import-Module $commonModulePath -Force
 
-# Check for required PowerShell modules
-try {
-    Import-Module SqlServer -ErrorAction Stop
-}
-catch {
-    Write-Host "ERROR: SqlServer module not found. Please install it using: Install-Module -Name SqlServer" -ForegroundColor Red
+# Import core module
+$coreModulePath = Join-Path $moduleDir "SqlServerDataImport.psm1"
+if (-not (Test-Path $coreModulePath)) {
+    Write-Host "ERROR: SqlServerDataImport.psm1 module not found at: $coreModulePath" -ForegroundColor Red
     exit 1
 }
 
-try {
-    Import-Module ImportExcel -ErrorAction Stop
-}
-catch {
-    Write-Host "ERROR: ImportExcel module not found. Please install it using: Install-Module -Name ImportExcel" -ForegroundColor Red
+Import-Module $coreModulePath -Force
+
+# Initialize required PowerShell modules (SqlServer, ImportExcel)
+if (-not (Initialize-ImportModules)) {
+    Write-Host "ERROR: Required modules not available. Please install SqlServer and ImportExcel modules." -ForegroundColor Red
+    Write-Host "Run: Install-Module -Name SqlServer, ImportExcel" -ForegroundColor Yellow
     exit 1
 }
+
+#endregion
+
+#region Helper Functions
 
 function Get-DataFolderAndSpec {
+    <#
+    .SYNOPSIS
+    Prompts user for data folder and Excel specification file.
+
+    .DESCRIPTION
+    Interactive prompts with defaults for data folder (current location)
+    and Excel file (ExportSpec.xlsx).
+    #>
     Write-Host "`n=== Data Folder and Specification File Configuration ===" -ForegroundColor Cyan
 
     # Prompt for DataFolder
@@ -78,7 +91,27 @@ function Get-DataFolderAndSpec {
     }
 }
 
-function Get-DatabaseConnection {
+function Get-DatabaseConnectionDetails {
+    <#
+    .SYNOPSIS
+    Prompts user for database connection details.
+
+    .DESCRIPTION
+    Collects server, database, and optional authentication details from user.
+    Uses common module's New-SqlConnectionString for building connection string.
+
+    .PARAMETER Server
+    SQL Server instance name (optional - will prompt if not provided).
+
+    .PARAMETER Database
+    Database name (optional - will prompt if not provided).
+
+    .PARAMETER Username
+    SQL Server authentication username (optional - uses Windows auth if not provided).
+
+    .PARAMETER Password
+    SQL Server authentication password (optional - will prompt if username provided).
+    #>
     param(
         [string]$Server,
         [string]$Database,
@@ -88,7 +121,7 @@ function Get-DatabaseConnection {
 
     Write-Host "`n=== Database Connection Configuration ===" -ForegroundColor Cyan
 
-    # Use provided parameters or prompt for missing ones
+    # Prompt for server if not provided
     if ([string]::IsNullOrWhiteSpace($Server)) {
         $Server = Read-Host "Enter SQL Server instance (e.g., localhost, server\instance)"
     }
@@ -96,6 +129,7 @@ function Get-DatabaseConnection {
         Write-Host "Server: $Server (from parameter)"
     }
 
+    # Prompt for database if not provided
     if ([string]::IsNullOrWhiteSpace($Database)) {
         $Database = Read-Host "Enter database name"
     }
@@ -104,15 +138,13 @@ function Get-DatabaseConnection {
     }
 
     # Determine authentication method
-    # If Username is provided, use SQL Authentication
-    # If Username is NOT provided, use Windows Authentication (no prompt)
     $useSqlAuth = -not [string]::IsNullOrWhiteSpace($Username)
 
     if ($useSqlAuth) {
         # SQL Server Authentication
         Write-Host "Authentication: SQL Server Authentication (Username: $Username)" -ForegroundColor Green
 
-        # If password not provided, prompt for it
+        # Prompt for password if not provided
         if ([string]::IsNullOrWhiteSpace($Password)) {
             Write-Host "Password required for SQL Server Authentication" -ForegroundColor Yellow
             $securePassword = Read-Host "Enter password for user '$Username'" -AsSecureString
@@ -121,15 +153,18 @@ function Get-DatabaseConnection {
             [System.Runtime.InteropServices.Marshal]::ZeroFreeBSTR($BSTR)
         }
 
-        $connectionString = "Server=$Server;Database=$Database;User Id=$Username;Password=$Password;"
+        # Use common module to build connection string
+        $connectionString = New-SqlConnectionString -Server $Server -Database $Database -Username $Username -Password $Password
     }
     else {
-        # Windows Authentication (default when no username provided)
+        # Windows Authentication
         Write-Host "Authentication: Windows Authentication (Integrated Security)" -ForegroundColor Green
-        $connectionString = "Server=$Server;Database=$Database;Integrated Security=True;"
+
+        # Use common module to build connection string
+        $connectionString = New-SqlConnectionString -Server $Server -Database $Database
     }
 
-    # Test connection using module function
+    # Test connection
     if (-not (Test-DatabaseConnection -ConnectionString $connectionString)) {
         Write-Host "Failed to connect to database. Please check your connection details." -ForegroundColor Red
         exit 1
@@ -140,6 +175,13 @@ function Get-DatabaseConnection {
 }
 
 function Get-SchemaName {
+    <#
+    .SYNOPSIS
+    Prompts user for schema name with default option.
+
+    .PARAMETER DefaultSchema
+    Default schema name to suggest (typically the detected prefix).
+    #>
     param([string]$DefaultSchema)
 
     Write-Host "`n=== Schema Configuration ===" -ForegroundColor Cyan
@@ -154,30 +196,12 @@ function Get-SchemaName {
     }
 }
 
-function Get-TableAction {
-    param([string]$TableName)
+#endregion
 
-    Write-Host "`nTable '$TableName' already exists. Choose action:" -ForegroundColor Yellow
-    Write-Host "1. Cancel entire script"
-    Write-Host "2. Skip this table"
-    Write-Host "3. Truncate (clear existing data)"
-    Write-Host "4. Recreate (drop and recreate table)"
+#region Main Execution
 
-    do {
-        $choice = Read-Host "Enter choice (1, 2, 3, or 4)"
-    } while ($choice -notin @("1", "2", "3", "4"))
-
-    switch ($choice) {
-        "1" { return "Cancel" }
-        "2" { return "Skip" }
-        "3" { return "Truncate" }
-        "4" { return "Recreate" }
-    }
-}
-
-# Main script execution
-Write-Host "=== SQL Server Data Import Script (Optimized) ===" -ForegroundColor Cyan
-Write-ImportLog "Starting optimized SQL Server Data Import Script" -Level "INFO"
+Write-Host "=== SQL Server Data Import Script (Refactored) ===" -ForegroundColor Cyan
+Write-ImportLog "Starting SQL Server Data Import Script" -Level "INFO"
 
 try {
     # Get DataFolder and ExcelSpecFile if not provided as parameters
@@ -196,7 +220,7 @@ try {
     Write-Host "Excel Spec File: $ExcelSpecFile"
 
     # Get database connection
-    $connectionString = Get-DatabaseConnection -Server $Server -Database $Database -Username $Username -Password $Password
+    $connectionString = Get-DatabaseConnectionDetails -Server $Server -Database $Database -Username $Username -Password $Password
 
     # Get prefix from data folder
     $prefix = Get-DataPrefix -FolderPath $DataFolder
@@ -231,10 +255,9 @@ try {
         exit 0
     }
 
-    # Process tables with simplified logic
-    Write-Host "`n=== Starting Optimized Import Process ===" -ForegroundColor Green
+    # Execute import using core module
+    Write-Host "`n=== Starting Import Process ===" -ForegroundColor Green
 
-    # Use the optimized import function
     try {
         $importParams = @{
             DataFolder = $DataFolder
@@ -265,14 +288,10 @@ try {
         $summary = Invoke-SqlServerDataImport @importParams
         Write-Host "`n=== Import Process Completed Successfully ===" -ForegroundColor Green
 
-        # Display import summary
-        if ($summary) {
-            Write-Host "`n=== Import Summary ===" -ForegroundColor Cyan
-            Write-Host $summary
-        }
+        # Summary is displayed by the module itself via Show-ImportSummary
     }
     catch {
-        Write-ImportLog "Optimized import failed: $($_.Exception.Message)" -Level "ERROR"
+        Write-ImportLog "Import failed: $($_.Exception.Message)" -Level "ERROR"
         Write-Host "Import failed: $($_.Exception.Message)" -ForegroundColor Red
         Write-Host "`nThis could be due to:" -ForegroundColor Yellow
         Write-Host "• Field count mismatch (check that first field is ImportID)" -ForegroundColor Yellow
@@ -283,7 +302,8 @@ try {
     }
 }
 catch {
-    Write-ImportLog "Script execution failed: $($_.Exception.Message)" -Level "ERROR"
     Write-Host "Script failed: $($_.Exception.Message)" -ForegroundColor Red
     exit 1
 }
+
+#endregion
