@@ -498,19 +498,42 @@ function Import-DataFile {
         $connection = New-Object System.Data.SqlClient.SqlConnection($ConnectionString)
         $connection.Open()
 
+        # Verify SQL table columns exist
+        Write-Host "Verifying SQL table columns..." -ForegroundColor Yellow
+        $sqlTableColumnsQuery = @"
+SELECT COLUMN_NAME
+FROM INFORMATION_SCHEMA.COLUMNS
+WHERE TABLE_SCHEMA = '$SchemaName' AND TABLE_NAME = '$TableName'
+ORDER BY ORDINAL_POSITION
+"@
+        $sqlTableColumns = Invoke-Sqlcmd -ConnectionString $ConnectionString -Query $sqlTableColumnsQuery
+        $sqlColumnNames = $sqlTableColumns.COLUMN_NAME
+
+        Write-Host "SQL Table Columns: $($sqlColumnNames -join ', ')" -ForegroundColor Gray
+        Write-Host "DataTable Columns: $($dataTable.Columns.ColumnName -join ', ')" -ForegroundColor Gray
+
+        # Check for mismatches
+        foreach ($dtColumn in $dataTable.Columns) {
+            if ($dtColumn.ColumnName -notin $sqlColumnNames) {
+                Write-Host "WARNING: DataTable column '$($dtColumn.ColumnName)' not found in SQL table!" -ForegroundColor Red
+            }
+        }
+
         $bulkCopy = New-Object System.Data.SqlClient.SqlBulkCopy($connection)
         $bulkCopy.DestinationTableName = "[$SchemaName].[$TableName]"
         $bulkCopy.BatchSize = 10000
         $bulkCopy.BulkCopyTimeout = 300  # 5 minutes
 
-        # Map ImportID column
-        $bulkCopy.ColumnMappings.Add("ImportID", "ImportID") | Out-Null
+        Write-ImportLog "Setting up column mappings for $($dataTable.Columns.Count) columns" -Level "INFO"
 
-        # Map columns from specification
-        foreach ($field in $Fields) {
-            $bulkCopy.ColumnMappings.Add($field.'Column name', $field.'Column name') | Out-Null
+        # Map each column from DataTable to SQL table
+        foreach ($column in $dataTable.Columns) {
+            $columnName = $column.ColumnName
+            Write-Host "  Mapping column: $columnName (Type: $($column.DataType.Name))" -ForegroundColor Gray
+            $bulkCopy.ColumnMappings.Add($columnName, $columnName) | Out-Null
         }
 
+        Write-Host "Starting bulk copy operation..." -ForegroundColor Yellow
         $bulkCopy.WriteToServer($dataTable)
 
         $bulkCopy.Close()
@@ -523,6 +546,16 @@ function Import-DataFile {
     }
     catch {
         Write-ImportLog "Bulk copy failed: $($_.Exception.Message)" -Level "ERROR"
+        Write-Host "`nBulk Copy Error Details:" -ForegroundColor Red
+        Write-Host "Table: [$SchemaName].[$TableName]" -ForegroundColor Red
+        Write-Host "DataTable Columns: $($dataTable.Columns.Count)" -ForegroundColor Red
+        Write-Host "Column Names: $($dataTable.Columns.ColumnName -join ', ')" -ForegroundColor Red
+        Write-Host "Error: $($_.Exception.Message)" -ForegroundColor Red
+
+        if ($_.Exception.InnerException) {
+            Write-Host "Inner Exception: $($_.Exception.InnerException.Message)" -ForegroundColor Red
+        }
+
         if ($connection.State -eq 'Open') {
             $connection.Close()
         }
