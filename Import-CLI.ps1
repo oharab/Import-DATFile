@@ -9,7 +9,8 @@ param(
     [string]$Username,
     [string]$Password,
     [switch]$Force,
-    [string]$PostInstallScripts
+    [string]$PostInstallScripts,
+    [switch]$VerboseLogging
 )
 
 # Import the SqlServerDataImport module
@@ -247,6 +248,12 @@ try {
         if (-not [string]::IsNullOrWhiteSpace($PostInstallScripts)) {
             $importParams.PostInstallScripts = $PostInstallScripts
             Write-Host "Post-install scripts will be executed from: $PostInstallScripts" -ForegroundColor Cyan
+        }
+
+        # Add Verbose flag if specified
+        if ($VerboseLogging) {
+            $importParams.Verbose = $true
+            Write-Host "Verbose logging enabled - detailed operational information will be displayed" -ForegroundColor Cyan
         }
 
         $summary = Invoke-SqlServerDataImport @importParams

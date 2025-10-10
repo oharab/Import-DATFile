@@ -3,25 +3,48 @@
 
 # Global variables
 $script:ImportSummary = @()
+$script:VerboseLogging = $false
 
 #region Logging Functions
 
 function Write-ImportLog {
+    <#
+    .SYNOPSIS
+    Writes log messages with different severity levels
+
+    .DESCRIPTION
+    Centralized logging function that supports different log levels.
+    VERBOSE and DEBUG messages only show when global VerboseLogging is enabled.
+
+    .PARAMETER Message
+    The log message to write
+
+    .PARAMETER Level
+    Log level: INFO, SUCCESS, WARNING, ERROR, VERBOSE, DEBUG
+    #>
     param(
         [Parameter(Mandatory=$true)]
         [string]$Message,
 
+        [ValidateSet("INFO", "SUCCESS", "WARNING", "ERROR", "VERBOSE", "DEBUG")]
         [string]$Level = "INFO"
     )
+
+    # Skip verbose/debug messages unless verbose logging is enabled
+    if (($Level -eq "VERBOSE" -or $Level -eq "DEBUG") -and -not $script:VerboseLogging) {
+        return
+    }
 
     $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
     $logMessage = "[$timestamp] [$Level] $Message"
 
-    # Write to console only
+    # Write to console with appropriate color
     switch ($Level.ToUpper()) {
         "ERROR" { Write-Host $logMessage -ForegroundColor Red }
         "WARNING" { Write-Host $logMessage -ForegroundColor Yellow }
         "SUCCESS" { Write-Host $logMessage -ForegroundColor Green }
+        "VERBOSE" { Write-Host $logMessage -ForegroundColor Cyan }
+        "DEBUG" { Write-Host $logMessage -ForegroundColor Gray }
         "INFO" { Write-Host $logMessage -ForegroundColor White }
         default { Write-Host $logMessage -ForegroundColor White }
     }
@@ -109,8 +132,8 @@ function Get-DataPrefix {
         [string]$FolderPath
     )
 
-    Write-ImportLog "Starting prefix detection in folder: $FolderPath" -Level "INFO"
-    Write-Host "`nLooking for Employee.dat file to determine prefix..." -ForegroundColor Yellow
+    Write-ImportLog "Starting prefix detection in folder: $FolderPath" -Level "VERBOSE"
+    Write-Host "`nDetecting data prefix from Employee.dat file..." -ForegroundColor Yellow
 
     $employeeFiles = Get-ChildItem -Path $FolderPath -Name "*Employee.dat"
 
@@ -137,9 +160,8 @@ function Get-DataPrefix {
     # Extract prefix by removing "Employee.dat" from the end (case-insensitive)
     $prefix = $employeeFile -replace "(?i)Employee\.dat$", ""
 
-    Write-Host "Found: $employeeFile" -ForegroundColor Green
-    Write-Host "Detected prefix: '$prefix'" -ForegroundColor Green
-    Write-ImportLog "Prefix detection successful - File: $employeeFile, Prefix: '$prefix'" -Level "SUCCESS"
+    Write-Host "Prefix detected: '$prefix' (from $employeeFile)" -ForegroundColor Green
+    Write-ImportLog "Prefix detection successful - File: $employeeFile, Prefix: '$prefix'" -Level "VERBOSE"
 
     return $prefix
 }
@@ -150,7 +172,7 @@ function Get-TableSpecifications {
         [string]$ExcelPath
     )
 
-    Write-ImportLog "Starting to read table specifications from Excel: $ExcelPath" -Level "INFO"
+    Write-ImportLog "Reading table specifications from Excel: $ExcelPath" -Level "VERBOSE"
     Write-Host "`nReading table specifications from Excel..." -ForegroundColor Yellow
 
     if (-not (Test-Path $ExcelPath)) {
@@ -161,7 +183,7 @@ function Get-TableSpecifications {
     try {
         $specs = Import-Excel -Path $ExcelPath
         Write-Host "Successfully read $($specs.Count) field specifications" -ForegroundColor Green
-        Write-ImportLog "Successfully read $($specs.Count) field specifications from Excel" -Level "SUCCESS"
+        Write-ImportLog "Successfully read $($specs.Count) field specifications from Excel" -Level "VERBOSE"
         return $specs
     }
     catch {
@@ -234,7 +256,7 @@ function New-DatabaseSchema {
         [string]$SchemaName
     )
 
-    Write-ImportLog "Creating/verifying schema: $SchemaName" -Level "INFO"
+    Write-ImportLog "Creating/verifying schema: $SchemaName" -Level "VERBOSE"
 
     # Validate schema name to prevent injection - only allow alphanumeric and underscore
     if ($SchemaName -notmatch '^[a-zA-Z0-9_]+$') {
@@ -260,7 +282,7 @@ END
     try {
         Invoke-Sqlcmd -ConnectionString $ConnectionString -Query $query -ErrorAction Stop
         Write-Host "Schema '$SchemaName' is ready" -ForegroundColor Green
-        Write-ImportLog "Schema '$SchemaName' is ready" -Level "SUCCESS"
+        Write-ImportLog "Schema '$SchemaName' is ready" -Level "VERBOSE"
     }
     catch {
         Write-ImportLog "Failed to create schema '$SchemaName': $($_.Exception.Message)" -Level "ERROR"
@@ -283,7 +305,7 @@ function New-DatabaseTable {
         [array]$Fields
     )
 
-    Write-ImportLog "Creating table [$SchemaName].[$TableName] with $($Fields.Count + 1) fields (including ImportID)" -Level "INFO"
+    Write-ImportLog "Creating table [$SchemaName].[$TableName] with $($Fields.Count + 1) fields (including ImportID)" -Level "VERBOSE"
     $fieldDefinitions = @()
 
     # Always add ImportID as first field
@@ -304,7 +326,7 @@ $($fieldDefinitions -join ",`n")
     try {
         Invoke-Sqlcmd -ConnectionString $ConnectionString -Query $createTableQuery -ErrorAction Stop
         Write-Host "Table [$SchemaName].[$TableName] created successfully" -ForegroundColor Green
-        Write-ImportLog "Table [$SchemaName].[$TableName] created successfully" -Level "SUCCESS"
+        Write-ImportLog "Table [$SchemaName].[$TableName] created successfully" -Level "VERBOSE"
     }
     catch {
         Write-ImportLog "Failed to create table [$SchemaName].[$TableName]: $($_.Exception.Message)" -Level "ERROR"
@@ -324,13 +346,13 @@ function Remove-DatabaseTable {
         [string]$TableName
     )
 
-    Write-ImportLog "Dropping table [$SchemaName].[$TableName]" -Level "INFO"
+    Write-ImportLog "Dropping table [$SchemaName].[$TableName]" -Level "VERBOSE"
     $dropQuery = "DROP TABLE [$SchemaName].[$TableName]"
 
     try {
         Invoke-Sqlcmd -ConnectionString $ConnectionString -Query $dropQuery -ErrorAction Stop
         Write-Host "Table [$SchemaName].[$TableName] dropped successfully" -ForegroundColor Green
-        Write-ImportLog "Table [$SchemaName].[$TableName] dropped successfully" -Level "SUCCESS"
+        Write-ImportLog "Table [$SchemaName].[$TableName] dropped successfully" -Level "VERBOSE"
     }
     catch {
         Write-ImportLog "Failed to drop table [$SchemaName].[$TableName]: $($_.Exception.Message)" -Level "ERROR"
@@ -350,13 +372,13 @@ function Clear-DatabaseTable {
         [string]$TableName
     )
 
-    Write-ImportLog "Truncating table [$SchemaName].[$TableName]" -Level "INFO"
+    Write-ImportLog "Truncating table [$SchemaName].[$TableName]" -Level "VERBOSE"
     $truncateQuery = "TRUNCATE TABLE [$SchemaName].[$TableName]"
 
     try {
         Invoke-Sqlcmd -ConnectionString $ConnectionString -Query $truncateQuery -ErrorAction Stop
         Write-Host "Table [$SchemaName].[$TableName] truncated successfully" -ForegroundColor Green
-        Write-ImportLog "Table [$SchemaName].[$TableName] truncated successfully" -Level "SUCCESS"
+        Write-ImportLog "Table [$SchemaName].[$TableName] truncated successfully" -Level "VERBOSE"
     }
     catch {
         Write-ImportLog "Failed to truncate table [$SchemaName].[$TableName]: $($_.Exception.Message)" -Level "ERROR"
@@ -387,8 +409,8 @@ function Import-DataFile {
     )
 
     $fileName = [System.IO.Path]::GetFileName($FilePath)
-    Write-ImportLog "Starting data import for table [$SchemaName].[$TableName] from file: $fileName" -Level "INFO"
-    Write-Host "Importing data from $fileName using SqlBulkCopy..." -ForegroundColor Yellow
+    Write-ImportLog "Starting data import for table [$SchemaName].[$TableName] from file: $fileName" -Level "VERBOSE"
+    Write-Host "Importing $fileName..." -ForegroundColor Yellow
 
     # Read the file and parse pipe-separated data
     $lines = Get-Content -Path $FilePath
@@ -597,7 +619,7 @@ ORDER BY ORDINAL_POSITION
         $bulkCopy.BatchSize = 10000
         $bulkCopy.BulkCopyTimeout = 300  # 5 minutes
 
-        Write-ImportLog "Setting up column mappings for $($dataTable.Columns.Count) columns" -Level "INFO"
+        Write-ImportLog "Setting up column mappings for $($dataTable.Columns.Count) columns" -Level "DEBUG"
 
         # Map each column from DataTable to SQL table
         foreach ($column in $dataTable.Columns) {
@@ -613,7 +635,7 @@ ORDER BY ORDINAL_POSITION
         $connection.Close()
 
         Write-Host "Successfully imported $rowCount rows into [$SchemaName].[$TableName]" -ForegroundColor Green
-        Write-ImportLog "Data import completed successfully - $rowCount rows imported into [$SchemaName].[$TableName]" -Level "SUCCESS"
+        Write-ImportLog "Successfully imported $rowCount rows into [$SchemaName].[$TableName]" -Level "VERBOSE"
 
         return $rowCount
     }
@@ -671,7 +693,7 @@ function Show-ImportSummary {
         [string]$SchemaName
     )
 
-    Write-ImportLog "Generating import summary" -Level "INFO"
+    Write-ImportLog "Generating import summary" -Level "DEBUG"
     Write-Host "`n=== Import Summary ===" -ForegroundColor Cyan
 
     if ($script:ImportSummary.Count -eq 0) {
@@ -712,7 +734,7 @@ function Show-ImportSummary {
     Write-Host "=" * 50 -ForegroundColor Gray
     Write-Host "Total Tables Imported: $($script:ImportSummary.Count)" -ForegroundColor Green
     Write-Host "Total Rows Imported: $("{0:N0}" -f $totalRows)" -ForegroundColor Green
-    Write-ImportLog "Import summary completed - $($script:ImportSummary.Count) tables, $totalRows total rows" -Level "SUCCESS"
+    Write-ImportLog "Import summary completed - $($script:ImportSummary.Count) tables, $totalRows total rows" -Level "DEBUG"
 }
 
 function Clear-ImportSummary {
@@ -763,7 +785,7 @@ function Invoke-PostInstallScripts {
         [string]$SchemaName
     )
 
-    Write-ImportLog "Starting post-install script execution" -Level "INFO"
+    Write-ImportLog "Starting post-install script execution" -Level "VERBOSE"
 
     # Determine if ScriptPath is a file or folder
     $sqlFiles = @()
@@ -771,12 +793,12 @@ function Invoke-PostInstallScripts {
     if (Test-Path -Path $ScriptPath -PathType Leaf) {
         # Single file
         $sqlFiles += Get-Item -Path $ScriptPath
-        Write-ImportLog "Post-install: Single SQL file specified: $ScriptPath" -Level "INFO"
+        Write-ImportLog "Post-install: Single SQL file specified: $ScriptPath" -Level "DEBUG"
     }
     elseif (Test-Path -Path $ScriptPath -PathType Container) {
         # Folder - get all .sql files
         $sqlFiles = Get-ChildItem -Path $ScriptPath -Filter "*.sql" | Sort-Object Name
-        Write-ImportLog "Post-install: Found $($sqlFiles.Count) SQL files in folder: $ScriptPath" -Level "INFO"
+        Write-ImportLog "Post-install: Found $($sqlFiles.Count) SQL files in folder: $ScriptPath" -Level "DEBUG"
     }
     else {
         Write-ImportLog "Post-install script path not found: $ScriptPath" -Level "ERROR"
@@ -793,7 +815,7 @@ function Invoke-PostInstallScripts {
 
     foreach ($sqlFile in $sqlFiles) {
         Write-Host "`nExecuting post-install script: $($sqlFile.Name)" -ForegroundColor Cyan
-        Write-ImportLog "Post-install: Executing $($sqlFile.Name)" -Level "INFO"
+        Write-ImportLog "Post-install: Executing $($sqlFile.Name)" -Level "DEBUG"
 
         try {
             # Read the SQL template file
@@ -812,7 +834,7 @@ function Invoke-PostInstallScripts {
             Invoke-Sqlcmd -ConnectionString $ConnectionString -Query $sql -QueryTimeout 300
 
             Write-Host "  ✓ Successfully executed $($sqlFile.Name)" -ForegroundColor Green
-            Write-ImportLog "Post-install: Successfully executed $($sqlFile.Name)" -Level "SUCCESS"
+            Write-ImportLog "Post-install: Successfully executed $($sqlFile.Name)" -Level "DEBUG"
             $successCount++
         }
         catch {
@@ -830,7 +852,7 @@ function Invoke-PostInstallScripts {
         Write-Host "Failed: $errorCount" -ForegroundColor Red
     }
 
-    Write-ImportLog "Post-install script execution completed: $successCount successful, $errorCount failed" -Level "INFO"
+    Write-ImportLog "Post-install script execution completed: $successCount successful, $errorCount failed" -Level "VERBOSE"
 
     if ($errorCount -gt 0) {
         throw "Post-install script execution completed with $errorCount errors"
@@ -857,14 +879,19 @@ function Invoke-SqlServerDataImport {
         [ValidateSet("Ask", "Skip", "Truncate", "Recreate")]
         [string]$TableExistsAction = "Ask",
 
-        [string]$PostInstallScripts
+        [string]$PostInstallScripts,
+
+        [switch]$Verbose
     )
+
+    # Set global verbose logging flag
+    $script:VerboseLogging = $Verbose.IsPresent
 
     # Clear previous summary
     Clear-ImportSummary
 
     try {
-        Write-ImportLog "Starting SQL Server data import" -Level "INFO"
+        Write-ImportLog "Starting SQL Server data import process" -Level "INFO"
 
         # Validate paths
         if (-not (Test-Path $DataFolder)) {
@@ -955,7 +982,7 @@ function Invoke-SqlServerDataImport {
         # Execute post-install scripts if specified
         if (-not [string]::IsNullOrWhiteSpace($PostInstallScripts)) {
             Write-Host "`n=== Post-Install Scripts ===" -ForegroundColor Cyan
-            Write-ImportLog "Post-install scripts specified: $PostInstallScripts" -Level "INFO"
+            Write-ImportLog "Post-install scripts path: $PostInstallScripts" -Level "VERBOSE"
 
             # Extract database name from connection string
             $databaseName = ""

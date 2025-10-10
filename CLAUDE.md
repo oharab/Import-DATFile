@@ -92,11 +92,19 @@ This is a PowerShell-based data import utility that reads pipe-separated .dat fi
 
 **Main Entry Point:**
 - `Invoke-SqlServerDataImport`: Orchestrates the entire import process
-  - Parameters: DataFolder, ExcelSpecFile, ConnectionString, SchemaName, TableExistsAction, PostInstallScripts
+  - Parameters: DataFolder, ExcelSpecFile, ConnectionString, SchemaName, TableExistsAction, PostInstallScripts, Verbose
   - Handles table conflict resolution (Ask, Skip, Truncate, Recreate)
   - Processes all matching .dat files
   - Optionally executes post-install scripts after import
+  - Supports verbose logging for detailed operational information
   - Returns comprehensive results
+
+**Logging System:**
+- `Write-ImportLog`: Centralized logging with multiple severity levels
+  - Levels: INFO, SUCCESS, WARNING, ERROR, VERBOSE, DEBUG
+  - VERBOSE and DEBUG messages only display when verbose mode is enabled
+  - Color-coded console output for easy reading
+  - Timestamped messages for tracking execution flow
 
 ## Running the Script
 
@@ -153,6 +161,7 @@ When run without parameters, the script prompts for:
 - `-Password`: SQL Server authentication password (optional - if not provided but Username is, will prompt securely)
 - `-Force`: Switch parameter - automatically drops and recreates all tables without prompting (WARNING: deletes existing data)
 - `-PostInstallScripts`: Path to folder containing SQL template files, or path to a single SQL file (optional - executed after import completes)
+- `-VerboseLogging`: Switch parameter - enables detailed operational logging (shows VERBOSE and DEBUG level messages)
 
 ### Authentication Behavior
 - **No Username parameter** → Automatically uses Windows Authentication (Integrated Security)
@@ -220,11 +229,45 @@ GO
 - Provides summary with total scripts, successful count, and failed count
 - Logs all operations with timestamps
 
-### With Verbose Logging
+### Verbose Logging
+Enables detailed operational information during import. Useful for troubleshooting and understanding exactly what the import process is doing.
+
+**When to use verbose logging:**
+- Troubleshooting import issues
+- Understanding detailed flow of operations
+- Debugging data type conversions
+- Reviewing column mappings and SQL operations
+- Monitoring post-install script execution details
+
+**What verbose logging shows:**
+- Schema creation and verification steps
+- Table creation with field counts
+- File reading and parsing details
+- Column mapping setup
+- Row import progress at detailed level
+- Post-install script execution details
+- Internal operational state changes
+
+**Usage:**
 ```powershell
-.\Import-CLI.ps1 -Verbose
-.\Import-CLI.ps1 -DataFolder "C:\path\to\data" -ExcelSpecFile "CustomSpec.xlsx" -Server "localhost" -Database "MyDB" -Verbose
+# Enable verbose logging in CLI
+.\Import-CLI.ps1 -DataFolder "C:\Data" -Server "localhost" -Database "MyDB" -VerboseLogging
+
+# Combine with other parameters
+.\Import-CLI.ps1 -DataFolder "C:\Data" -Server "localhost" -Database "MyDB" -Force -PostInstallScripts "C:\Scripts" -VerboseLogging
 ```
+
+**GUI Usage:**
+- Check the "Verbose Logging" checkbox in the Import Options section
+- Output window will show detailed VERBOSE and DEBUG level messages in cyan and gray colors
+
+**Log Levels:**
+- **INFO** (White) - User-facing important milestones (always shown)
+- **SUCCESS** (Green) - Successful operation completions (always shown)
+- **WARNING** (Yellow) - Non-critical issues (always shown)
+- **ERROR** (Red) - Critical failures (always shown)
+- **VERBOSE** (Cyan) - Detailed operational information (verbose mode only)
+- **DEBUG** (Gray) - Very detailed debugging information (verbose mode only)
 
 ### Prerequisites
 ```powershell

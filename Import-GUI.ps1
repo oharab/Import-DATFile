@@ -285,7 +285,7 @@ function Show-ImportGUI {
         }
     })
 
-    # Options section (simplified)
+    # Options section
     $optionsGroupBox = New-Object System.Windows.Forms.GroupBox
     $optionsGroupBox.Text = "Import Options"
     $optionsGroupBox.Size = New-Object System.Drawing.Size(470, 60)
@@ -316,14 +316,15 @@ Skip: Skip tables that already exist
 Ask: Prompt for each table (CLI-only, defaults to Recreate in GUI)
 "@)
 
-    # Note about removed options
-    $removedLabel = New-Object System.Windows.Forms.Label
-    $removedLabel.Text = "Note: Field mismatch handling and verbose logging removed for performance"
-    $removedLabel.Size = New-Object System.Drawing.Size(320, 20)
-    $removedLabel.Location = New-Object System.Drawing.Point(245, 25)
-    $removedLabel.ForeColor = [System.Drawing.Color]::Gray
-    $removedLabel.Font = New-Object System.Drawing.Font("Segoe UI", 8)
-    $optionsGroupBox.Controls.Add($removedLabel)
+    # Verbose logging checkbox
+    $verboseCheckBox = New-Object System.Windows.Forms.CheckBox
+    $verboseCheckBox.Text = "Verbose Logging"
+    $verboseCheckBox.Size = New-Object System.Drawing.Size(150, 20)
+    $verboseCheckBox.Location = New-Object System.Drawing.Point(245, 25)
+    $verboseCheckBox.Checked = $false
+    $optionsGroupBox.Controls.Add($verboseCheckBox)
+
+    $tooltip.SetToolTip($verboseCheckBox, "Show detailed operational information during import")
 
     # Progress section
     $progressLabel = New-Object System.Windows.Forms.Label
@@ -485,6 +486,7 @@ Do you want to continue with these assumptions?
         $global:ImportRunspace.SessionStateProxy.SetVariable("SchemaName", $schemaName)
         $global:ImportRunspace.SessionStateProxy.SetVariable("TableAction", $tableAction)
         $global:ImportRunspace.SessionStateProxy.SetVariable("PostInstallScripts", $postInstallTextBox.Text)
+        $global:ImportRunspace.SessionStateProxy.SetVariable("VerboseLogging", $verboseCheckBox.Checked)
         $global:ImportRunspace.SessionStateProxy.SetVariable("ModulePath", $modulePath)
 
         $global:ImportPowerShell = [powershell]::Create()
@@ -509,6 +511,11 @@ Do you want to continue with these assumptions?
                 # Add PostInstallScripts if provided
                 if (-not [string]::IsNullOrWhiteSpace($PostInstallScripts)) {
                     $importParams.PostInstallScripts = $PostInstallScripts
+                }
+
+                # Add Verbose flag if enabled
+                if ($VerboseLogging) {
+                    $importParams.Verbose = $true
                 }
 
                 $result = Invoke-SqlServerDataImport @importParams
