@@ -76,6 +76,15 @@ This is a PowerShell-based data import utility that reads pipe-separated .dat fi
   - Performs SqlBulkCopy operation with column mappings
   - Returns row count imported
 
+**Post-Install Script Functions:**
+- `Invoke-PostInstallScripts`: Executes SQL template files after import completes
+  - Parameters: ScriptPath, ConnectionString, DatabaseName, SchemaName
+  - Supports single file or folder of .sql files
+  - Replaces {{DATABASE}} and {{SCHEMA}} placeholders
+  - Executes scripts in alphabetical order
+  - Returns detailed success/failure summary
+  - 300-second timeout per script
+
 **Summary and Reporting:**
 - `Add-ImportSummary`: Tracks imported tables and row counts
 - `Show-ImportSummary`: Displays formatted import summary
@@ -83,9 +92,10 @@ This is a PowerShell-based data import utility that reads pipe-separated .dat fi
 
 **Main Entry Point:**
 - `Invoke-SqlServerDataImport`: Orchestrates the entire import process
-  - Parameters: DataFolder, ExcelSpecFile, ConnectionString, SchemaName, TableExistsAction
+  - Parameters: DataFolder, ExcelSpecFile, ConnectionString, SchemaName, TableExistsAction, PostInstallScripts
   - Handles table conflict resolution (Ask, Skip, Truncate, Recreate)
   - Processes all matching .dat files
+  - Optionally executes post-install scripts after import
   - Returns comprehensive results
 
 ## Running the Script
@@ -142,6 +152,7 @@ When run without parameters, the script prompts for:
 - `-Username`: SQL Server authentication username (optional - if not provided, Windows Authentication is used)
 - `-Password`: SQL Server authentication password (optional - if not provided but Username is, will prompt securely)
 - `-Force`: Switch parameter - automatically drops and recreates all tables without prompting (WARNING: deletes existing data)
+- `-PostInstallScripts`: Path to folder containing SQL template files, or path to a single SQL file (optional - executed after import completes)
 
 ### Authentication Behavior
 - **No Username parameter** → Automatically uses Windows Authentication (Integrated Security)
@@ -158,6 +169,56 @@ When run without parameters, the script prompts for:
     - Development/testing environments
     - Automated refresh scenarios where data loss is acceptable
     - Situations where table schema has changed and needs to be rebuilt
+
+### Post-Install Scripts
+Post-install scripts allow you to execute custom SQL code after the data import completes. This is useful for:
+- Creating views based on imported data
+- Creating stored procedures that process the data
+- Creating functions or triggers
+- Running data validation queries
+- Setting up indexes or constraints
+
+**How it works:**
+1. Create SQL template files (`.sql`) in a folder or single file
+2. Use placeholders `{{DATABASE}}` and `{{SCHEMA}}` in your SQL that will be replaced with actual values
+3. Scripts are executed in alphabetical order by filename
+4. Each script runs with a 300-second timeout
+5. If a script fails, import is still considered successful (warning shown)
+
+**Template Placeholders:**
+- `{{DATABASE}}` - Replaced with the database name from connection string
+- `{{SCHEMA}}` - Replaced with the schema name used for import
+
+**Example SQL template file (`01-CreateView.sql`):**
+```sql
+CREATE OR ALTER VIEW {{SCHEMA}}.EmployeeSummary AS
+SELECT
+    ImportID,
+    FirstName,
+    LastName,
+    Department
+FROM {{SCHEMA}}.Employee
+WHERE Active = 1
+GO
+```
+
+**Usage Examples:**
+```powershell
+# With post-install scripts folder
+.\Import-CLI.ps1 -DataFolder "C:\Data" -Server "localhost" -Database "MyDB" -PostInstallScripts "C:\Data\PostInstall"
+
+# With single post-install script
+.\Import-CLI.ps1 -DataFolder "C:\Data" -Server "localhost" -Database "MyDB" -PostInstallScripts "C:\Data\CreateViews.sql"
+
+# Combined with Force mode
+.\Import-CLI.ps1 -DataFolder "C:\Data" -Server "localhost" -Database "MyDB" -Force -PostInstallScripts "C:\Data\PostInstall"
+```
+
+**Post-Install Script Output:**
+- Shows preview of first 200 characters of each script
+- Displays success (✓) or failure (✗) for each script
+- Provides summary with total scripts, successful count, and failed count
+- Logs all operations with timestamps
 
 ### With Verbose Logging
 ```powershell

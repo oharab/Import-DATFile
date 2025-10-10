@@ -144,11 +144,39 @@ function Show-ImportGUI {
     })
     $form.Controls.Add($excelButton)
 
+    # Post-install scripts section (optional)
+    $postInstallLabel = New-Object System.Windows.Forms.Label
+    $postInstallLabel.Text = "Post-Install Scripts (Optional):"
+    $postInstallLabel.Size = New-Object System.Drawing.Size(200, 20)
+    $postInstallLabel.Location = New-Object System.Drawing.Point(20, 295)
+    $form.Controls.Add($postInstallLabel)
+
+    $postInstallTextBox = New-Object System.Windows.Forms.TextBox
+    $postInstallTextBox.Size = New-Object System.Drawing.Size(380, 20)
+    $postInstallTextBox.Location = New-Object System.Drawing.Point(20, 315)
+    $postInstallTextBox.Text = ""
+    $postInstallTextBox.PlaceholderText = "Path to SQL scripts folder or file"
+    $form.Controls.Add($postInstallTextBox)
+
+    $postInstallButton = New-Object System.Windows.Forms.Button
+    $postInstallButton.Text = "Browse..."
+    $postInstallButton.Size = New-Object System.Drawing.Size(80, 25)
+    $postInstallButton.Location = New-Object System.Drawing.Point(410, 313)
+    $postInstallButton.Add_Click({
+        $folderDialog = New-Object System.Windows.Forms.FolderBrowserDialog
+        $folderDialog.Description = "Select folder containing post-install SQL scripts"
+        $folderDialog.SelectedPath = $dataFolderTextBox.Text
+        if ($folderDialog.ShowDialog() -eq "OK") {
+            $postInstallTextBox.Text = $folderDialog.SelectedPath
+        }
+    })
+    $form.Controls.Add($postInstallButton)
+
     # Database connection section
     $dbGroupBox = New-Object System.Windows.Forms.GroupBox
     $dbGroupBox.Text = "Database Connection"
     $dbGroupBox.Size = New-Object System.Drawing.Size(470, 120)
-    $dbGroupBox.Location = New-Object System.Drawing.Point(20, 300)
+    $dbGroupBox.Location = New-Object System.Drawing.Point(20, 350)
     $form.Controls.Add($dbGroupBox)
 
     # Server
@@ -456,6 +484,7 @@ Do you want to continue with these assumptions?
         $global:ImportRunspace.SessionStateProxy.SetVariable("ConnectionString", $connectionString)
         $global:ImportRunspace.SessionStateProxy.SetVariable("SchemaName", $schemaName)
         $global:ImportRunspace.SessionStateProxy.SetVariable("TableAction", $tableAction)
+        $global:ImportRunspace.SessionStateProxy.SetVariable("PostInstallScripts", $postInstallTextBox.Text)
         $global:ImportRunspace.SessionStateProxy.SetVariable("ModulePath", $modulePath)
 
         $global:ImportPowerShell = [powershell]::Create()
@@ -469,7 +498,20 @@ Do you want to continue with these assumptions?
                 Import-Module ImportExcel -Force
 
                 # Execute the optimized import
-                $result = Invoke-SqlServerDataImport -DataFolder $DataFolder -ExcelSpecFile $ExcelSpecFile -ConnectionString $ConnectionString -SchemaName $SchemaName -TableExistsAction $TableAction
+                $importParams = @{
+                    DataFolder = $DataFolder
+                    ExcelSpecFile = $ExcelSpecFile
+                    ConnectionString = $ConnectionString
+                    SchemaName = $SchemaName
+                    TableExistsAction = $TableAction
+                }
+
+                # Add PostInstallScripts if provided
+                if (-not [string]::IsNullOrWhiteSpace($PostInstallScripts)) {
+                    $importParams.PostInstallScripts = $PostInstallScripts
+                }
+
+                $result = Invoke-SqlServerDataImport @importParams
 
                 return @{
                     Success = $true

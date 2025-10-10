@@ -721,6 +721,124 @@ function Clear-ImportSummary {
 
 #endregion
 
+#region Post-Install Script Functions
+
+function Invoke-PostInstallScripts {
+    <#
+    .SYNOPSIS
+    Executes SQL template files after data import with placeholder replacement.
+
+    .DESCRIPTION
+    Reads SQL template files from a specified folder, replaces placeholders with
+    actual values (database name, schema name), and executes them using the
+    current database connection. This is useful for creating views, stored procedures,
+    functions, or other database objects that depend on the imported data.
+
+    .PARAMETER ScriptPath
+    Path to folder containing SQL template files, or path to a single SQL file.
+
+    .PARAMETER ConnectionString
+    SQL Server connection string.
+
+    .PARAMETER DatabaseName
+    Database name to replace {{DATABASE}} placeholder.
+
+    .PARAMETER SchemaName
+    Schema name to replace {{SCHEMA}} placeholder.
+
+    .EXAMPLE
+    Invoke-PostInstallScripts -ScriptPath "C:\Scripts\PostInstall" -ConnectionString $conn -DatabaseName "MyDB" -SchemaName "dbo"
+    #>
+    param(
+        [Parameter(Mandatory=$true)]
+        [string]$ScriptPath,
+
+        [Parameter(Mandatory=$true)]
+        [string]$ConnectionString,
+
+        [Parameter(Mandatory=$true)]
+        [string]$DatabaseName,
+
+        [Parameter(Mandatory=$true)]
+        [string]$SchemaName
+    )
+
+    Write-ImportLog "Starting post-install script execution" -Level "INFO"
+
+    # Determine if ScriptPath is a file or folder
+    $sqlFiles = @()
+
+    if (Test-Path -Path $ScriptPath -PathType Leaf) {
+        # Single file
+        $sqlFiles += Get-Item -Path $ScriptPath
+        Write-ImportLog "Post-install: Single SQL file specified: $ScriptPath" -Level "INFO"
+    }
+    elseif (Test-Path -Path $ScriptPath -PathType Container) {
+        # Folder - get all .sql files
+        $sqlFiles = Get-ChildItem -Path $ScriptPath -Filter "*.sql" | Sort-Object Name
+        Write-ImportLog "Post-install: Found $($sqlFiles.Count) SQL files in folder: $ScriptPath" -Level "INFO"
+    }
+    else {
+        Write-ImportLog "Post-install script path not found: $ScriptPath" -Level "ERROR"
+        throw "Post-install script path not found: $ScriptPath"
+    }
+
+    if ($sqlFiles.Count -eq 0) {
+        Write-ImportLog "No SQL files found for post-install execution" -Level "WARNING"
+        return
+    }
+
+    $successCount = 0
+    $errorCount = 0
+
+    foreach ($sqlFile in $sqlFiles) {
+        Write-Host "`nExecuting post-install script: $($sqlFile.Name)" -ForegroundColor Cyan
+        Write-ImportLog "Post-install: Executing $($sqlFile.Name)" -Level "INFO"
+
+        try {
+            # Read the SQL template file
+            $sqlTemplate = Get-Content -Path $sqlFile.FullName -Raw
+
+            # Replace placeholders
+            $sql = $sqlTemplate
+            $sql = $sql -replace '\{\{DATABASE\}\}', $DatabaseName
+            $sql = $sql -replace '\{\{SCHEMA\}\}', $SchemaName
+
+            # Show what we're about to execute (first 200 chars)
+            $preview = $sql.Substring(0, [Math]::Min(200, $sql.Length))
+            Write-Host "  Preview: $preview..." -ForegroundColor Gray
+
+            # Execute the SQL script
+            Invoke-Sqlcmd -ConnectionString $ConnectionString -Query $sql -QueryTimeout 300
+
+            Write-Host "  ✓ Successfully executed $($sqlFile.Name)" -ForegroundColor Green
+            Write-ImportLog "Post-install: Successfully executed $($sqlFile.Name)" -Level "SUCCESS"
+            $successCount++
+        }
+        catch {
+            Write-Host "  ✗ Failed to execute $($sqlFile.Name): $($_.Exception.Message)" -ForegroundColor Red
+            Write-ImportLog "Post-install: Failed to execute $($sqlFile.Name): $($_.Exception.Message)" -Level "ERROR"
+            $errorCount++
+        }
+    }
+
+    # Summary
+    Write-Host "`n=== Post-Install Script Summary ===" -ForegroundColor Cyan
+    Write-Host "Total scripts: $($sqlFiles.Count)" -ForegroundColor White
+    Write-Host "Successful: $successCount" -ForegroundColor Green
+    if ($errorCount -gt 0) {
+        Write-Host "Failed: $errorCount" -ForegroundColor Red
+    }
+
+    Write-ImportLog "Post-install script execution completed: $successCount successful, $errorCount failed" -Level "INFO"
+
+    if ($errorCount -gt 0) {
+        throw "Post-install script execution completed with $errorCount errors"
+    }
+}
+
+#endregion
+
 #region Main Import Function
 
 function Invoke-SqlServerDataImport {
@@ -737,7 +855,9 @@ function Invoke-SqlServerDataImport {
         [string]$SchemaName,
 
         [ValidateSet("Ask", "Skip", "Truncate", "Recreate")]
-        [string]$TableExistsAction = "Ask"
+        [string]$TableExistsAction = "Ask",
+
+        [string]$PostInstallScripts
     )
 
     # Clear previous summary
@@ -832,6 +952,37 @@ function Invoke-SqlServerDataImport {
 
         Write-ImportLog "Import process completed successfully" -Level "SUCCESS"
 
+        # Execute post-install scripts if specified
+        if (-not [string]::IsNullOrWhiteSpace($PostInstallScripts)) {
+            Write-Host "`n=== Post-Install Scripts ===" -ForegroundColor Cyan
+            Write-ImportLog "Post-install scripts specified: $PostInstallScripts" -Level "INFO"
+
+            # Extract database name from connection string
+            $databaseName = ""
+            if ($ConnectionString -match "Database=([^;]+)") {
+                $databaseName = $Matches[1]
+            }
+            elseif ($ConnectionString -match "Initial Catalog=([^;]+)") {
+                $databaseName = $Matches[1]
+            }
+
+            if ([string]::IsNullOrWhiteSpace($databaseName)) {
+                Write-ImportLog "Could not extract database name from connection string for placeholder replacement" -Level "WARNING"
+                Write-Host "Warning: Could not extract database name from connection string" -ForegroundColor Yellow
+            }
+
+            try {
+                Invoke-PostInstallScripts -ScriptPath $PostInstallScripts -ConnectionString $ConnectionString -DatabaseName $databaseName -SchemaName $SchemaName
+                Write-ImportLog "Post-install scripts completed successfully" -Level "SUCCESS"
+            }
+            catch {
+                Write-ImportLog "Post-install scripts failed: $($_.Exception.Message)" -Level "ERROR"
+                Write-Host "`nWARNING: Post-install scripts failed but data import was successful" -ForegroundColor Yellow
+                Write-Host "Error: $($_.Exception.Message)" -ForegroundColor Red
+                # Don't throw - import was successful even if post-install failed
+            }
+        }
+
         return $script:ImportSummary
     }
     catch {
@@ -845,6 +996,7 @@ function Invoke-SqlServerDataImport {
 # Export module functions
 Export-ModuleMember -Function @(
     'Invoke-SqlServerDataImport',
+    'Invoke-PostInstallScripts',
     'Get-DataPrefix',
     'Get-TableSpecifications',
     'Get-SqlDataTypeMapping',

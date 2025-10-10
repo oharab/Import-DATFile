@@ -8,7 +8,8 @@ param(
     [string]$Database,
     [string]$Username,
     [string]$Password,
-    [switch]$Force
+    [switch]$Force,
+    [string]$PostInstallScripts
 )
 
 # Import the SqlServerDataImport module
@@ -234,7 +235,21 @@ try {
 
     # Use the optimized import function
     try {
-        $summary = Invoke-SqlServerDataImport -DataFolder $DataFolder -ExcelSpecFile $ExcelSpecFile -ConnectionString $connectionString -SchemaName $schemaName -TableExistsAction $tableAction
+        $importParams = @{
+            DataFolder = $DataFolder
+            ExcelSpecFile = $ExcelSpecFile
+            ConnectionString = $connectionString
+            SchemaName = $schemaName
+            TableExistsAction = $tableAction
+        }
+
+        # Add PostInstallScripts if provided
+        if (-not [string]::IsNullOrWhiteSpace($PostInstallScripts)) {
+            $importParams.PostInstallScripts = $PostInstallScripts
+            Write-Host "Post-install scripts will be executed from: $PostInstallScripts" -ForegroundColor Cyan
+        }
+
+        $summary = Invoke-SqlServerDataImport @importParams
         Write-Host "`n=== Import Process Completed Successfully ===" -ForegroundColor Green
 
         # Display import summary
