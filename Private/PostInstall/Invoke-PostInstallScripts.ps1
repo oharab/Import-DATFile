@@ -78,12 +78,16 @@ function Invoke-PostInstallScripts {
             $sql = $sql -replace '\{\{DATABASE\}\}', $DatabaseName
             $sql = $sql -replace '\{\{SCHEMA\}\}', $SchemaName
 
+            # Script execution configuration
+            $previewLength = 200         # Characters to show in preview
+            $queryTimeoutSeconds = 300   # 5 minutes
+
             # Show preview
-            $preview = $sql.Substring(0, [Math]::Min($script:PREVIEW_TEXT_LENGTH, $sql.Length))
+            $preview = $sql.Substring(0, [Math]::Min($previewLength, $sql.Length))
             Write-Host "  Preview: $preview..." -ForegroundColor Gray
 
             # Execute the SQL script
-            Invoke-Sqlcmd -ConnectionString $ConnectionString -Query $sql -QueryTimeout $script:SQL_COMMAND_TIMEOUT_SECONDS
+            Invoke-Sqlcmd -ConnectionString $ConnectionString -Query $sql -QueryTimeout $queryTimeoutSeconds
 
             Write-Host "  ✓ Successfully executed $($sqlFile.Name)" -ForegroundColor Green
             Write-Debug "Post-install: Successfully executed $($sqlFile.Name)"

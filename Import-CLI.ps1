@@ -15,30 +15,23 @@ param(
 
 #region Module Loading
 
-# Import common utilities module first
+# Import core module (which will initialize dependencies automatically)
 $moduleDir = Split-Path $MyInvocation.MyCommand.Path
-$commonModulePath = Join-Path $moduleDir "Import-DATFile.Common.psm1"
-
-if (-not (Test-Path $commonModulePath)) {
-    Write-Host "ERROR: Import-DATFile.Common.psm1 not found at: $commonModulePath" -ForegroundColor Red
-    exit 1
-}
-
-Import-Module $commonModulePath -Force
-
-# Import core module
 $coreModulePath = Join-Path $moduleDir "SqlServerDataImport.psm1"
+
 if (-not (Test-Path $coreModulePath)) {
     Write-Host "ERROR: SqlServerDataImport.psm1 module not found at: $coreModulePath" -ForegroundColor Red
     exit 1
 }
 
-Import-Module $coreModulePath -Force
-
-# Initialize required PowerShell modules (SqlServer, ImportExcel)
-if (-not (Initialize-ImportModules)) {
-    Write-Host "ERROR: Required modules not available. Please install SqlServer and ImportExcel modules." -ForegroundColor Red
-    Write-Host "Run: Install-Module -Name SqlServer, ImportExcel" -ForegroundColor Yellow
+try {
+    Import-Module $coreModulePath -Force -ErrorAction Stop
+}
+catch {
+    Write-Host "ERROR: Failed to load SqlServerDataImport module." -ForegroundColor Red
+    Write-Host "This could be due to missing dependencies (SqlServer, ImportExcel modules)." -ForegroundColor Yellow
+    Write-Host "Error: $($_.Exception.Message)" -ForegroundColor Red
+    Write-Host "`nTo install required modules, run: Install-Module -Name SqlServer, ImportExcel" -ForegroundColor Yellow
     exit 1
 }
 
@@ -98,7 +91,7 @@ function Get-DatabaseConnectionDetails {
 
     .DESCRIPTION
     Collects server, database, and optional authentication details from user.
-    Uses common module's New-SqlConnectionString for building connection string.
+    Returns a hashtable with connection parameters.
 
     .PARAMETER Server
     SQL Server instance name (optional - will prompt if not provided).
@@ -152,26 +145,18 @@ function Get-DatabaseConnectionDetails {
             $Password = [System.Runtime.InteropServices.Marshal]::PtrToStringAuto($BSTR)
             [System.Runtime.InteropServices.Marshal]::ZeroFreeBSTR($BSTR)
         }
-
-        # Use common module to build connection string
-        $connectionString = New-SqlConnectionString -Server $Server -Database $Database -Username $Username -Password $Password
     }
     else {
         # Windows Authentication
         Write-Host "Authentication: Windows Authentication (Integrated Security)" -ForegroundColor Green
-
-        # Use common module to build connection string
-        $connectionString = New-SqlConnectionString -Server $Server -Database $Database
     }
 
-    # Test connection
-    if (-not (Test-DatabaseConnection -ConnectionString $connectionString)) {
-        Write-Host "Failed to connect to database. Please check your connection details." -ForegroundColor Red
-        exit 1
+    return @{
+        Server = $Server
+        Database = $Database
+        Username = $Username
+        Password = $Password
     }
-
-    Write-Host "Connection successful!" -ForegroundColor Green
-    return $connectionString
 }
 
 function Get-SchemaName {
@@ -219,8 +204,8 @@ try {
     Write-Host "Data Folder: $DataFolder"
     Write-Host "Excel Spec File: $ExcelSpecFile"
 
-    # Get database connection
-    $connectionString = Get-DatabaseConnectionDetails -Server $Server -Database $Database -Username $Username -Password $Password
+    # Get database connection parameters
+    $connectionParams = Get-DatabaseConnectionDetails -Server $Server -Database $Database -Username $Username -Password $Password
 
     # Get prefix from data folder
     $prefix = Get-DataPrefix -FolderPath $DataFolder
@@ -262,9 +247,16 @@ try {
         $importParams = @{
             DataFolder = $DataFolder
             ExcelSpecFile = $ExcelSpecFile
-            ConnectionString = $connectionString
+            Server = $connectionParams.Server
+            Database = $connectionParams.Database
             SchemaName = $schemaName
             TableExistsAction = $tableAction
+        }
+
+        # Add Username/Password if SQL Server authentication is being used
+        if (-not [string]::IsNullOrWhiteSpace($connectionParams.Username)) {
+            $importParams.Username = $connectionParams.Username
+            $importParams.Password = $connectionParams.Password
         }
 
         # Add PostInstallScripts if provided

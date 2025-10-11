@@ -14,8 +14,17 @@ function Invoke-SqlServerDataImport {
     .PARAMETER ExcelSpecFile
     Excel specification file name.
 
-    .PARAMETER ConnectionString
-    SQL Server connection string.
+    .PARAMETER Server
+    SQL Server instance name (e.g., "localhost", "server\instance").
+
+    .PARAMETER Database
+    Database name.
+
+    .PARAMETER Username
+    SQL Server authentication username (optional - uses Windows Authentication if not provided).
+
+    .PARAMETER Password
+    SQL Server authentication password (required when Username is provided).
 
     .PARAMETER SchemaName
     Schema name (optional - defaults to detected prefix).
@@ -27,7 +36,10 @@ function Invoke-SqlServerDataImport {
     Optional path to post-install SQL scripts.
 
     .EXAMPLE
-    Invoke-SqlServerDataImport -DataFolder "C:\Data" -ExcelSpecFile "ExportSpec.xlsx" -ConnectionString $conn -SchemaName "dbo"
+    Invoke-SqlServerDataImport -DataFolder "C:\Data" -ExcelSpecFile "ExportSpec.xlsx" -Server "localhost" -Database "MyDB" -SchemaName "dbo"
+
+    .EXAMPLE
+    Invoke-SqlServerDataImport -DataFolder "C:\Data" -ExcelSpecFile "ExportSpec.xlsx" -Server "localhost" -Database "MyDB" -Username "sa" -Password "P@ssw0rd"
     #>
     [CmdletBinding(SupportsShouldProcess=$true)]
     [OutputType([array])]
@@ -42,7 +54,17 @@ function Invoke-SqlServerDataImport {
 
         [Parameter(Mandatory=$true)]
         [ValidateNotNullOrEmpty()]
-        [string]$ConnectionString,
+        [string]$Server,
+
+        [Parameter(Mandatory=$true)]
+        [ValidateNotNullOrEmpty()]
+        [string]$Database,
+
+        [Parameter(Mandatory=$false)]
+        [string]$Username,
+
+        [Parameter(Mandatory=$false)]
+        [string]$Password,
 
         [string]$SchemaName,
 
@@ -58,6 +80,10 @@ function Invoke-SqlServerDataImport {
     # Clear previous summary
     Clear-ImportSummary
 
+    # Build connection string
+    $connectionString = New-SqlConnectionString -Server $Server -Database $Database -Username $Username -Password $Password
+    Write-Verbose "Connection string built for Server: $Server, Database: $Database"
+
     try {
         Write-ImportLog "Starting SQL Server data import process" -Level "INFO"
 
@@ -68,7 +94,7 @@ function Invoke-SqlServerDataImport {
         # Find prefix and validate connection
         $prefix = Get-DataPrefix -FolderPath $DataFolder
 
-        if (-not (Test-DatabaseConnection -ConnectionString $ConnectionString)) {
+        if (-not (Test-DatabaseConnection -ConnectionString $connectionString)) {
             throw "Database connection test failed"
         }
 
@@ -81,7 +107,7 @@ function Invoke-SqlServerDataImport {
         Test-SchemaName -SchemaName $SchemaName -ThrowOnError
 
         # Create schema
-        New-DatabaseSchema -ConnectionString $ConnectionString -SchemaName $SchemaName
+        New-DatabaseSchema -ConnectionString $connectionString -SchemaName $SchemaName
 
         # Read table specifications
         $tableSpecs = Get-TableSpecifications -ExcelPath $excelPath
@@ -112,7 +138,7 @@ function Invoke-SqlServerDataImport {
             Write-Host "Found $($tableFields.Count) field specifications for table '$tableName'"
 
             # Handle existing tables
-            $tableExists = Test-TableExists -ConnectionString $ConnectionString -SchemaName $SchemaName -TableName $tableName
+            $tableExists = Test-TableExists -ConnectionString $connectionString -SchemaName $SchemaName -TableName $tableName
 
             if ($tableExists) {
                 switch ($TableExistsAction) {
@@ -121,20 +147,20 @@ function Invoke-SqlServerDataImport {
                         continue
                     }
                     "Truncate" {
-                        Clear-DatabaseTable -ConnectionString $ConnectionString -SchemaName $SchemaName -TableName $tableName
+                        Clear-DatabaseTable -ConnectionString $connectionString -SchemaName $SchemaName -TableName $tableName
                     }
                     "Recreate" {
-                        Remove-DatabaseTable -ConnectionString $ConnectionString -SchemaName $SchemaName -TableName $tableName
-                        New-DatabaseTable -ConnectionString $ConnectionString -SchemaName $SchemaName -TableName $tableName -Fields $tableFields
+                        Remove-DatabaseTable -ConnectionString $connectionString -SchemaName $SchemaName -TableName $tableName
+                        New-DatabaseTable -ConnectionString $connectionString -SchemaName $SchemaName -TableName $tableName -Fields $tableFields
                     }
                 }
             }
             else {
-                New-DatabaseTable -ConnectionString $ConnectionString -SchemaName $SchemaName -TableName $tableName -Fields $tableFields
+                New-DatabaseTable -ConnectionString $connectionString -SchemaName $SchemaName -TableName $tableName -Fields $tableFields
             }
 
             # Import data
-            $rowsImported = Import-DataFile -ConnectionString $ConnectionString -SchemaName $SchemaName -TableName $tableName -FilePath $datFile.FullName -Fields $tableFields
+            $rowsImported = Import-DataFile -ConnectionString $connectionString -SchemaName $SchemaName -TableName $tableName -FilePath $datFile.FullName -Fields $tableFields
 
             Add-ImportSummary -TableName $tableName -RowCount $rowsImported -FileName $datFile.Name
         }
@@ -149,15 +175,8 @@ function Invoke-SqlServerDataImport {
             Write-Host "`n=== Post-Install Scripts ===" -ForegroundColor Cyan
             Write-Verbose "Post-install scripts path: $PostInstallScripts"
 
-            # Extract database name from connection string
-            $databaseName = Get-DatabaseNameFromConnectionString -ConnectionString $ConnectionString
-
-            if ([string]::IsNullOrWhiteSpace($databaseName)) {
-                Write-Warning "Could not extract database name from connection string for placeholder replacement"
-            }
-
             try {
-                Invoke-PostInstallScripts -ScriptPath $PostInstallScripts -ConnectionString $ConnectionString -DatabaseName $databaseName -SchemaName $SchemaName
+                Invoke-PostInstallScripts -ScriptPath $PostInstallScripts -ConnectionString $connectionString -DatabaseName $Database -SchemaName $SchemaName
                 Write-ImportLog "Post-install scripts completed successfully" -Level "SUCCESS"
             }
             catch {

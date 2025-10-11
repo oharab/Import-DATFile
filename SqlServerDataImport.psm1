@@ -2,37 +2,10 @@
 # Root module loader - dot-sources all Private and Public functions
 # Refactored to follow PowerShell best practices with Private/Public separation
 
-#region Module Dependencies
+#region Module Setup
 
 # Get module directory
 $moduleRoot = $PSScriptRoot
-
-# Load constants
-$constantsPath = Join-Path $moduleRoot "Private\Configuration\Import-DATFile.Constants.ps1"
-if (Test-Path $constantsPath) {
-    . $constantsPath
-}
-else {
-    throw "Constants file not found at: $constantsPath"
-}
-
-# Load type mappings
-$typeMappingsPath = Join-Path $moduleRoot "Private\Configuration\TypeMappings.psd1"
-if (Test-Path $typeMappingsPath) {
-    $script:TypeMappings = Import-PowerShellDataFile -Path $typeMappingsPath
-}
-else {
-    throw "TypeMappings.psd1 not found at: $typeMappingsPath"
-}
-
-# Import common utilities module
-$commonModulePath = Join-Path $moduleRoot "Import-DATFile.Common.psm1"
-if (Test-Path $commonModulePath) {
-    Import-Module $commonModulePath -Force
-}
-else {
-    throw "Common module not found at: $commonModulePath"
-}
 
 #endregion
 
@@ -63,6 +36,10 @@ foreach ($function in $privateFunctions) {
 }
 
 Write-Verbose "Loaded $($privateFunctions.Count) private functions"
+
+# Initialize external module dependencies (SqlServer, ImportExcel)
+Write-Verbose "Initializing external module dependencies..."
+Initialize-ImportModules -ThrowOnError
 
 # Dot-source all Public functions
 Write-Verbose "Loading Public functions from: $moduleRoot\Public"

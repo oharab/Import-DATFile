@@ -65,9 +65,10 @@ function Read-DatFileLines {
 
         # Validate final field count
         if ($values.Length -ne $ExpectedFieldCount) {
+            $previewLength = 200  # Characters to show in error preview
             $endLineNumber = $startLineNumber + $linesConsumed - 1
             Write-Error "Field count mismatch at lines $startLineNumber-$endLineNumber. Expected $ExpectedFieldCount, got $($values.Length)"
-            $preview = $accumulatedLine.Substring(0, [Math]::Min($script:PREVIEW_TEXT_LENGTH, $accumulatedLine.Length))
+            $preview = $accumulatedLine.Substring(0, [Math]::Min($previewLength, $accumulatedLine.Length))
             Write-Host "FAILED at line $startLineNumber (consumed $linesConsumed lines)" -ForegroundColor Red
             Write-Host "Content preview: $preview..." -ForegroundColor Red
             throw "Field count mismatch at lines $startLineNumber-$endLineNumber. Expected $ExpectedFieldCount fields, got $($values.Length)."

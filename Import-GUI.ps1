@@ -6,29 +6,20 @@ Add-Type -AssemblyName System.Drawing
 
 #region Module Loading
 
-# Import common utilities module first
+# Import core module (which will initialize dependencies automatically)
 $moduleDir = Split-Path $MyInvocation.MyCommand.Path
-$commonModulePath = Join-Path $moduleDir "Import-DATFile.Common.psm1"
-
-if (-not (Test-Path $commonModulePath)) {
-    [System.Windows.Forms.MessageBox]::Show("Import-DATFile.Common.psm1 not found at: $commonModulePath", "Error", "OK", "Error")
-    exit 1
-}
-
-Import-Module $commonModulePath -Force
-
-# Import core module
 $coreModulePath = Join-Path $moduleDir "SqlServerDataImport.psm1"
+
 if (-not (Test-Path $coreModulePath)) {
     [System.Windows.Forms.MessageBox]::Show("SqlServerDataImport.psm1 module not found at: $coreModulePath", "Error", "OK", "Error")
     exit 1
 }
 
-Import-Module $coreModulePath -Force
-
-# Initialize required PowerShell modules (SqlServer, ImportExcel)
-if (-not (Initialize-ImportModules)) {
-    [System.Windows.Forms.MessageBox]::Show("Required modules (SqlServer, ImportExcel) not found. Please install using:`n`nInstall-Module -Name SqlServer, ImportExcel", "Missing Modules", "OK", "Error")
+try {
+    Import-Module $coreModulePath -Force -ErrorAction Stop
+}
+catch {
+    [System.Windows.Forms.MessageBox]::Show("Failed to load SqlServerDataImport module. This could be due to missing dependencies (SqlServer, ImportExcel modules).`n`nError: $($_.Exception.Message)`n`nTo install required modules, run: Install-Module -Name SqlServer, ImportExcel", "Module Load Error", "OK", "Error")
     exit 1
 }
 
@@ -436,31 +427,6 @@ Do you want to continue with these assumptions?
             return
         }
 
-        # Build connection string using common module
-        try {
-            if ($authComboBox.SelectedIndex -eq 1) {
-                # SQL Server Authentication - use common module
-                $connectionString = New-SqlConnectionString -Server $serverTextBox.Text -Database $databaseTextBox.Text -Username $usernameTextBox.Text -Password $passwordTextBox.Text
-            } else {
-                # Windows Authentication - use common module
-                $connectionString = New-SqlConnectionString -Server $serverTextBox.Text -Database $databaseTextBox.Text
-            }
-        }
-        catch {
-            [System.Windows.Forms.MessageBox]::Show("Failed to build connection string: $($_.Exception.Message)", "Error", "OK", "Error")
-            return
-        }
-
-        # Test connection first
-        $outputTextBox.AppendText("Testing database connection...`r`n")
-        if (-not (Test-DatabaseConnection -ConnectionString $connectionString)) {
-            $outputTextBox.AppendText("ERROR: Database connection failed!`r`n")
-            [System.Windows.Forms.MessageBox]::Show("Database connection failed. Please check your connection details.", "Connection Error", "OK", "Error")
-            return
-        }
-
-        $outputTextBox.AppendText("Database connection successful!`r`n")
-
         # Disable start button and enable cancel
         $startButton.Enabled = $false
         $cancelButton.Enabled = $true
@@ -486,7 +452,10 @@ Do you want to continue with these assumptions?
 
         $global:ImportRunspace.SessionStateProxy.SetVariable("DataFolder", $dataFolderTextBox.Text)
         $global:ImportRunspace.SessionStateProxy.SetVariable("ExcelSpecFile", $excelTextBox.Text)
-        $global:ImportRunspace.SessionStateProxy.SetVariable("ConnectionString", $connectionString)
+        $global:ImportRunspace.SessionStateProxy.SetVariable("Server", $serverTextBox.Text)
+        $global:ImportRunspace.SessionStateProxy.SetVariable("Database", $databaseTextBox.Text)
+        $global:ImportRunspace.SessionStateProxy.SetVariable("Username", $usernameTextBox.Text)
+        $global:ImportRunspace.SessionStateProxy.SetVariable("Password", $passwordTextBox.Text)
         $global:ImportRunspace.SessionStateProxy.SetVariable("SchemaName", $schemaName)
         $global:ImportRunspace.SessionStateProxy.SetVariable("TableAction", $tableAction)
         $global:ImportRunspace.SessionStateProxy.SetVariable("PostInstallScripts", $postInstallTextBox.Text)
@@ -497,7 +466,6 @@ Do you want to continue with these assumptions?
             $global:ImportRunspace.SessionStateProxy.SetVariable("VerbosePreference", "SilentlyContinue")
         }
         $global:ImportRunspace.SessionStateProxy.SetVariable("ModulePath", $coreModulePath)
-        $global:ImportRunspace.SessionStateProxy.SetVariable("CommonModulePath", $commonModulePath)
 
         $global:ImportPowerShell = [powershell]::Create()
         $global:ImportPowerShell.Runspace = $global:ImportRunspace
@@ -505,17 +473,22 @@ Do you want to continue with these assumptions?
         # Import script to run in background
         $importScript = {
             try {
-                Import-Module $CommonModulePath -Force
                 Import-Module $ModulePath -Force
-                Initialize-ImportModules | Out-Null
 
                 # Execute the import
                 $importParams = @{
                     DataFolder = $DataFolder
                     ExcelSpecFile = $ExcelSpecFile
-                    ConnectionString = $ConnectionString
+                    Server = $Server
+                    Database = $Database
                     SchemaName = $SchemaName
                     TableExistsAction = $TableAction
+                }
+
+                # Add Username/Password if provided (SQL Server authentication)
+                if (-not [string]::IsNullOrWhiteSpace($Username)) {
+                    $importParams.Username = $Username
+                    $importParams.Password = $Password
                 }
 
                 # Add PostInstallScripts if provided

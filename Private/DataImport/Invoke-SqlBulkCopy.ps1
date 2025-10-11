@@ -40,6 +40,10 @@ function Invoke-SqlBulkCopy {
         [string]$TableName
     )
 
+    # Bulk copy configuration
+    $batchSize = 10000           # Rows per batch
+    $timeoutSeconds = 300        # 5 minutes
+
     Write-Verbose "Starting SqlBulkCopy operation to [$SchemaName].[$TableName]"
 
     try {
@@ -48,8 +52,8 @@ function Invoke-SqlBulkCopy {
 
         $bulkCopy = New-Object System.Data.SqlClient.SqlBulkCopy($connection)
         $bulkCopy.DestinationTableName = "[$SchemaName].[$TableName]"
-        $bulkCopy.BatchSize = $script:BULK_COPY_BATCH_SIZE
-        $bulkCopy.BulkCopyTimeout = $script:BULK_COPY_TIMEOUT_SECONDS
+        $bulkCopy.BatchSize = $batchSize
+        $bulkCopy.BulkCopyTimeout = $timeoutSeconds
 
         Write-Debug "Setting up column mappings for $($DataTable.Columns.Count) columns"
 
