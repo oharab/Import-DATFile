@@ -212,21 +212,27 @@ Describe "Clear-DatabaseTable" {
         }
 
         It "Should require ConnectionString parameter" {
-            # Act & Assert
-            { Clear-DatabaseTable -SchemaName $TestSchemaName `
-                                  -TableName $TestTableName } | Should -Throw
+            # Arrange
+            $command = Get-Command Clear-DatabaseTable
+
+            # Assert
+            $command.Parameters['ConnectionString'].Attributes.Mandatory | Should -Contain $true
         }
 
         It "Should require SchemaName parameter" {
-            # Act & Assert
-            { Clear-DatabaseTable -ConnectionString $TestConnectionString `
-                                  -TableName $TestTableName } | Should -Throw
+            # Arrange
+            $command = Get-Command Clear-DatabaseTable
+
+            # Assert
+            $command.Parameters['SchemaName'].Attributes.Mandatory | Should -Contain $true
         }
 
         It "Should require TableName parameter" {
-            # Act & Assert
-            { Clear-DatabaseTable -ConnectionString $TestConnectionString `
-                                  -SchemaName $TestSchemaName } | Should -Throw
+            # Arrange
+            $command = Get-Command Clear-DatabaseTable
+
+            # Assert
+            $command.Parameters['TableName'].Attributes.Mandatory | Should -Contain $true
         }
     }
 

@@ -215,10 +215,11 @@ Describe "New-DatabaseTable" {
         }
 
         It "Should require Fields parameter" {
-            # Act & Assert
-            { New-DatabaseTable -ConnectionString $TestConnectionString `
-                                -SchemaName $TestSchemaName `
-                                -TableName $TestTableName } | Should -Throw "*Fields*"
+            # Arrange
+            $command = Get-Command New-DatabaseTable
+
+            # Assert
+            $command.Parameters['Fields'].Attributes.Mandatory | Should -Contain $true
         }
     }
 

@@ -233,13 +233,19 @@ Describe "New-DatabaseSchema" {
         }
 
         It "Should require ConnectionString parameter" {
-            # Act & Assert
-            { New-DatabaseSchema -SchemaName $TestSchemaName } | Should -Throw
+            # Arrange
+            $command = Get-Command New-DatabaseSchema
+
+            # Assert
+            $command.Parameters['ConnectionString'].Attributes.Mandatory | Should -Contain $true
         }
 
         It "Should require SchemaName parameter" {
-            # Act & Assert
-            { New-DatabaseSchema -ConnectionString $TestConnectionString } | Should -Throw
+            # Arrange
+            $command = Get-Command New-DatabaseSchema
+
+            # Assert
+            $command.Parameters['SchemaName'].Attributes.Mandatory | Should -Contain $true
         }
     }
 

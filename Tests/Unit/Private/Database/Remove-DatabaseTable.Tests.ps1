@@ -212,21 +212,27 @@ Describe "Remove-DatabaseTable" {
         }
 
         It "Should require ConnectionString parameter" {
-            # Act & Assert
-            { Remove-DatabaseTable -SchemaName $TestSchemaName `
-                                   -TableName $TestTableName } | Should -Throw
+            # Arrange
+            $command = Get-Command Remove-DatabaseTable
+
+            # Assert
+            $command.Parameters['ConnectionString'].Attributes.Mandatory | Should -Contain $true
         }
 
         It "Should require SchemaName parameter" {
-            # Act & Assert
-            { Remove-DatabaseTable -ConnectionString $TestConnectionString `
-                                   -TableName $TestTableName } | Should -Throw
+            # Arrange
+            $command = Get-Command Remove-DatabaseTable
+
+            # Assert
+            $command.Parameters['SchemaName'].Attributes.Mandatory | Should -Contain $true
         }
 
         It "Should require TableName parameter" {
-            # Act & Assert
-            { Remove-DatabaseTable -ConnectionString $TestConnectionString `
-                                   -SchemaName $TestSchemaName } | Should -Throw
+            # Arrange
+            $command = Get-Command Remove-DatabaseTable
+
+            # Assert
+            $command.Parameters['TableName'].Attributes.Mandatory | Should -Contain $true
         }
     }
 }
