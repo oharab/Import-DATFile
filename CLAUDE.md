@@ -17,42 +17,65 @@ The project now follows PowerShell best practices with a clear Private/Public fo
 Import-DATFile/
 ├── SqlServerDataImport.psm1          # Root module loader (dot-sources all functions)
 ├── SqlServerDataImport.psd1          # Module manifest
-├── Import-DATFile.Common.psm1        # Shared utilities (used by CLI/GUI)
 │
 ├── Public/                            # Public API (exported functions)
 │   └── Invoke-SqlServerDataImport.ps1    # Main entry point
 │
 ├── Private/                           # Internal implementation (not exported)
-│   ├── Configuration/                    # Module configuration
-│   │   ├── Import-DATFile.Constants.ps1     # Centralized constants
-│   │   └── TypeMappings.psd1                # Data type mappings
-│   │
-│   ├── Database/                         # Database operations (6 functions)
-│   │   ├── Test-DatabaseConnection.ps1
+│   ├── Database/                         # Database operations (9 functions)
+│   │   ├── Clear-DatabaseTable.ps1
+│   │   ├── Get-DatabaseErrorGuidance.ps1
+│   │   ├── Get-DatabaseNameFromConnectionString.ps1
 │   │   ├── New-DatabaseSchema.ps1
-│   │   ├── Test-TableExists.ps1
 │   │   ├── New-DatabaseTable.ps1
+│   │   ├── New-SqlConnectionString.ps1
 │   │   ├── Remove-DatabaseTable.ps1
-│   │   └── Clear-DatabaseTable.ps1
+│   │   ├── Test-DatabaseConnection.ps1
+│   │   └── Test-TableExists.ps1
 │   │
-│   ├── DataImport/                       # Import pipeline (4 functions)
-│   │   ├── Read-DatFileLines.ps1
+│   ├── DataImport/                       # Import pipeline (14 functions)
 │   │   ├── Add-DataTableRows.ps1
+│   │   ├── ConvertTo-BooleanValue.ps1
+│   │   ├── ConvertTo-DateTimeValue.ps1
+│   │   ├── ConvertTo-DecimalValue.ps1
+│   │   ├── ConvertTo-IntegerValue.ps1
+│   │   ├── ConvertTo-TypedValue.ps1
+│   │   ├── Get-ConversionGuidance.ps1
+│   │   ├── Get-DotNetDataType.ps1
+│   │   ├── Get-SqlDataTypeMapping.ps1
+│   │   ├── Import-DataFile.ps1
 │   │   ├── Invoke-SqlBulkCopy.ps1
-│   │   └── Import-DataFile.ps1
+│   │   ├── New-ImportDataTable.ps1
+│   │   ├── Read-DatFileLines.ps1
+│   │   └── Test-IsNullValue.ps1
 │   │
-│   ├── Specification/                    # Excel/file processing (2 functions)
-│   │   ├── Get-DataPrefix.ps1
-│   │   └── Get-TableSpecifications.ps1
+│   ├── Initialization/                   # Module initialization (1 function)
+│   │   └── Initialize-ImportModules.ps1
+│   │
+│   ├── Logging/                          # Logging & summary (4 functions)
+│   │   ├── Add-ImportSummary.ps1
+│   │   ├── Clear-ImportSummary.ps1
+│   │   ├── Show-ImportSummary.ps1
+│   │   └── Write-ImportLog.ps1
+│   │
+│   ├── Orchestration/                    # Workflow orchestration (5 functions)
+│   │   ├── Complete-ImportProcess.ps1
+│   │   ├── Initialize-ImportContext.ps1
+│   │   ├── Invoke-TableImportProcess.ps1
+│   │   ├── Show-ValidationSummary.ps1
+│   │   └── Test-DataFileValidation.ps1
 │   │
 │   ├── PostInstall/                      # Post-import scripts (1 function)
 │   │   └── Invoke-PostInstallScripts.ps1
 │   │
-│   └── Logging/                          # Logging & summary (4 functions)
-│       ├── Write-ImportLog.ps1
-│       ├── Add-ImportSummary.ps1
-│       ├── Show-ImportSummary.ps1
-│       └── Clear-ImportSummary.ps1
+│   ├── Specification/                    # Excel/file processing (3 functions)
+│   │   ├── Get-DataPrefix.ps1
+│   │   ├── Get-TableSpecifications.ps1
+│   │   └── Test-ExcelSpecification.ps1
+│   │
+│   └── Validation/                       # Input validation (2 functions)
+│       ├── Test-ImportPath.ps1
+│       └── Test-SchemaName.ps1
 │
 ├── Import-CLI.ps1                     # Command-line interface
 └── Import-GUI.ps1                     # Windows Forms GUI
@@ -66,36 +89,25 @@ Import-DATFile/
 - **Team Collaboration**: Reduced merge conflicts, easier code reviews
 - **Encapsulation**: Internal implementation details hidden from consumers
 
-**Core Modules:**
+**Core Module:**
 - **SqlServerDataImport.psm1**: Root module loader
-  - Dot-sources all Private and Public functions
-  - Loads Configuration (Constants and TypeMappings from Private/Configuration)
-  - Loads Common utilities module (Import-DATFile.Common.psm1)
+  - Dot-sources all Private and Public functions recursively
+  - Calls `Initialize-ImportModules` to load external dependencies (SqlServer, ImportExcel)
   - Exports only Public functions via manifest
-  - Initializes global variables ($script:ImportSummary)
+  - Initializes global variables ($script:ImportSummary, $script:VerboseLogging)
   - No business logic - pure loader pattern
-
-- **Import-DATFile.Common.psm1**: Shared utilities module
-  - Common functions used across CLI, GUI, and core module
-  - Lives in root directory (imported by CLI/GUI)
-  - Connection string building (`New-SqlConnectionString`)
-  - Module initialization (`Initialize-ImportModules`)
-  - Type mapping functions (switch-based)
-  - Type conversion utilities (`ConvertTo-TypedValue`)
-  - Validation functions (`Test-ImportPath`, `Test-SchemaName`)
-  - Eliminates code duplication between CLI and GUI
 
 **User Interfaces:**
 - **Import-CLI.ps1**: Interactive command-line interface
   - Prompts user for configuration (data folder, Excel file, connection details)
-  - Uses common module for connection string building
+  - Imports SqlServerDataImport.psm1 module
   - Supports both interactive and parameter-based execution
   - Console-based progress display
 
 - **Import-GUI.ps1**: Windows Forms graphical interface
   - Rich UI with file browsers, connection builders, and real-time output
   - Uses System.Windows.Forms for native Windows GUI
-  - Uses common module for connection string building
+  - Imports SqlServerDataImport.psm1 module
   - Background runspace execution to prevent UI freezing
   - Captures and displays console output in real-time
 
@@ -123,15 +135,21 @@ Import-DATFile/
 5. Imports data from matching .dat files using high-performance SqlBulkCopy
 6. Displays comprehensive import summary with row counts
 
-### Core Module Functions (SqlServerDataImport.psm1)
+### Core Module Functions by Folder
 
-**File and Specification Functions:**
-- `Get-DataPrefix`: Detects data file prefix by locating *Employee.dat file
-- `Get-TableSpecifications`: Reads and parses Excel specification file
-- `Get-SqlDataTypeMapping`: Maps Excel data types to SQL Server types
-- `Get-DotNetDataType`: Maps SQL types to .NET types for DataTable columns
+**Public/ - Exported API (1 function):**
+- `Invoke-SqlServerDataImport`: Main orchestrator for the entire import process
+  - Parameters: DataFolder, ExcelSpecFile, Server, Database, Username, Password, SchemaName, TableExistsAction, PostInstallScripts, ValidateOnly, Verbose
+  - Handles table conflict resolution (Skip, Truncate, Recreate)
+  - Processes all matching .dat files
+  - Optionally executes post-install scripts after import
+  - Supports validation-only mode (no database changes)
+  - Returns comprehensive import summary or validation results
 
-**Database Management Functions:**
+**Private/Database/ - Database operations (9 functions):**
+- `New-SqlConnectionString`: Builds SQL Server connection strings (Windows/SQL auth)
+- `Get-DatabaseNameFromConnectionString`: Extracts database name from connection string
+- `Get-DatabaseErrorGuidance`: Provides user-friendly error messages for database issues
 - `Test-DatabaseConnection`: Validates SQL Server connectivity
 - `Test-TableExists`: Checks if a table exists in the database
 - `New-DatabaseSchema`: Creates database schema if it doesn't exist
@@ -139,47 +157,53 @@ Import-DATFile/
 - `Remove-DatabaseTable`: Drops existing table (for Recreate action)
 - `Clear-DatabaseTable`: Truncates table data (for Truncate action)
 
-**Import Functions:**
-- `Import-DataFile`: Core function that reads .dat file and bulk imports using SqlBulkCopy
-  - Creates DataTable structure with ImportID first and proper .NET types for each column
-  - Validates strict field count matching
-  - Populates DataTable rows from pipe-separated data with type conversion:
-    - DateTime parsing for date/time columns
-    - Numeric conversion for INT, BIGINT, DECIMAL, MONEY columns
-    - Direct assignment for string columns
-    - Graceful error handling with warnings for conversion failures
-  - Performs SqlBulkCopy operation with column mappings
-  - Returns row count imported
+**Private/DataImport/ - Import pipeline (14 functions):**
+- `Read-DatFileLines`: Reads pipe-separated DAT files with multi-line record support
+- `Get-SqlDataTypeMapping`: Maps Excel data types to SQL Server types (switch-based)
+- `Get-DotNetDataType`: Maps SQL types to .NET types for DataTable columns (switch-based)
+- `New-ImportDataTable`: Creates DataTable structure from field specifications
+- `Test-IsNullValue`: Checks if a value represents NULL (empty, "NULL", "NA", "N/A")
+- `ConvertTo-TypedValue`: Central type conversion dispatcher (dictionary pattern)
+- `ConvertTo-DateTimeValue`: Converts strings to DateTime (InvariantCulture, multiple formats)
+- `ConvertTo-IntegerValue`: Converts strings to Int32/Int64 (InvariantCulture)
+- `ConvertTo-DecimalValue`: Converts strings to Decimal/Double/Single (InvariantCulture)
+- `ConvertTo-BooleanValue`: Converts strings to Boolean (1/0, TRUE/FALSE, YES/NO, Y/N, T/F)
+- `Get-ConversionGuidance`: Generates user-friendly error messages for type conversion failures
+- `Add-DataTableRows`: Populates DataTable with type-converted values from records
+- `Invoke-SqlBulkCopy`: Performs high-performance bulk copy to SQL Server
+- `Import-DataFile`: Orchestrates file read → DataTable creation → bulk copy workflow
 
-**Post-Install Script Functions:**
-- `Invoke-PostInstallScripts`: Executes SQL template files after import completes
-  - Parameters: ScriptPath, ConnectionString, DatabaseName, SchemaName
-  - Supports single file or folder of .sql files
-  - Replaces {{DATABASE}} and {{SCHEMA}} placeholders
-  - Executes scripts in alphabetical order
-  - Returns detailed success/failure summary
-  - 300-second timeout per script
+**Private/Initialization/ - Module setup (1 function):**
+- `Initialize-ImportModules`: Loads external dependencies (SqlServer, ImportExcel modules)
 
-**Summary and Reporting:**
+**Private/Logging/ - Logging & summary (4 functions):**
+- `Write-ImportLog`: Centralized logging with severity levels (INFO, SUCCESS, WARNING, ERROR, VERBOSE, DEBUG)
 - `Add-ImportSummary`: Tracks imported tables and row counts
 - `Show-ImportSummary`: Displays formatted import summary
 - `Clear-ImportSummary`: Resets summary for new import session
 
-**Main Entry Point:**
-- `Invoke-SqlServerDataImport`: Orchestrates the entire import process
-  - Parameters: DataFolder, ExcelSpecFile, ConnectionString, SchemaName, TableExistsAction, PostInstallScripts, Verbose
-  - Handles table conflict resolution (Ask, Skip, Truncate, Recreate)
-  - Processes all matching .dat files
-  - Optionally executes post-install scripts after import
-  - Supports verbose logging for detailed operational information
-  - Returns comprehensive results
+**Private/Orchestration/ - Workflow coordination (5 functions):**
+- `Initialize-ImportContext`: Validates inputs, detects prefix, connects to DB, creates schema, reads specs
+- `Invoke-TableImportProcess`: Processes single table import (field lookup, table handling, data import)
+- `Complete-ImportProcess`: Finalizes import (shows summary, runs post-install scripts)
+- `Test-DataFileValidation`: Validates DAT file structure without importing
+- `Show-ValidationSummary`: Displays validation results in user-friendly format
 
-**Logging System:**
-- `Write-ImportLog`: Centralized logging with multiple severity levels
-  - Levels: INFO, SUCCESS, WARNING, ERROR, VERBOSE, DEBUG
-  - VERBOSE and DEBUG messages only display when verbose mode is enabled
-  - Color-coded console output for easy reading
-  - Timestamped messages for tracking execution flow
+**Private/PostInstall/ - Post-import scripts (1 function):**
+- `Invoke-PostInstallScripts`: Executes SQL template files after import completes
+  - Supports single file or folder of .sql files
+  - Replaces {{DATABASE}} and {{SCHEMA}} placeholders
+  - Executes scripts in alphabetical order
+  - 300-second timeout per script
+
+**Private/Specification/ - Excel/file processing (3 functions):**
+- `Get-DataPrefix`: Detects data file prefix by locating *Employee.dat file
+- `Get-TableSpecifications`: Reads and parses Excel specification file
+- `Test-ExcelSpecification`: Validates Excel spec structure (required columns, data types, duplicates)
+
+**Private/Validation/ - Input validation (2 functions):**
+- `Test-ImportPath`: Validates file/folder paths exist
+- `Test-SchemaName`: Validates schema name format (^[a-zA-Z0-9_]+$, SQL injection prevention)
 
 ## Critical Design Constraints
 
@@ -204,9 +228,9 @@ Import-DATFile/
 
 ### Type Mappings (Switch Statement Pattern)
 Type mappings use switch statements within conversion functions for better type safety:
-- **Get-SqlDataTypeMapping.ps1**: Excel types → SQL Server types (switch on Excel type names)
-- **Get-DotNetDataType.ps1**: SQL types → .NET types for DataTable columns
-- **ConvertTo-TypedValue.ps1**: Dictionary dispatch pattern for routing to specialized converters
+- **Private/DataImport/Get-SqlDataTypeMapping.ps1**: Excel types → SQL Server types (switch on Excel type names)
+- **Private/DataImport/Get-DotNetDataType.ps1**: SQL types → .NET types for DataTable columns
+- **Private/DataImport/ConvertTo-TypedValue.ps1**: Dictionary dispatch pattern for routing to specialized converters
 - Add new types by adding cases to switch statements (provides IntelliSense and compile-time safety)
 
 ### Constants (Locality of Behavior)
@@ -221,7 +245,7 @@ Constants are defined within their domain functions to maintain locality of beha
 
 ## Data Format Requirements (Critical for Type Conversion)
 
-These formats are enforced in `Import-DATFile.Common.psm1` → `ConvertTo-TypedValue`:
+These formats are enforced in `Private/DataImport/ConvertTo-TypedValue.ps1` and related converter functions:
 
 - **Dates**: `yyyy-MM-dd HH:mm:ss.fff` (tries multiple formats, InvariantCulture)
 - **Decimals**: Period separator, InvariantCulture (e.g., `123.45` NOT `123,45`)
@@ -287,15 +311,15 @@ Invoke-SqlServerDataImport @params
 **Type conversion issues**:
 - Always use InvariantCulture for numeric/date parsing
 - Update constants within their domain functions (see "Constants (Locality of Behavior)" section)
-- Add new type mappings to switch statements in `Get-SqlDataTypeMapping` and `Get-DotNetDataType`
+- Add new type mappings to switch statements in `Private/DataImport/Get-SqlDataTypeMapping.ps1` and `Private/DataImport/Get-DotNetDataType.ps1`
 
 **Breaking DRY principle**:
-- Check `Import-DATFile.Common.psm1` before duplicating code
-- CLI and GUI should delegate to common module functions
+- Check existing Private/ functions before duplicating code
+- Reuse functions across Database, DataImport, Validation, etc. folders
 
 **Violating SRP**:
 - Keep functions focused (~100 lines max)
-- See `Private/DataImport/` for example of proper function decomposition
+- See `Private/DataImport/` for example of proper function decomposition (14 focused functions instead of one monolith)
 
 ## Refactoring (2025-10-10)
 
@@ -304,54 +328,59 @@ Branch: `refactor/dry-solid-improvements`
 
 ### Key Improvements
 
-**1. DRY Principle**: Centralized common code in `Import-DATFile.Common.psm1` (eliminated 70+ duplicate lines)
+**1. DRY Principle**: Organized functions into focused folders (Database, DataImport, Validation, etc.) to eliminate duplication
 
-**2. Single Responsibility (SRP)**: Split `Import-DataFile` (280 lines, 8+ responsibilities) into focused functions:
-- `Read-DatFileLines`, `New-ImportDataTable`, `Add-DataTableRows`, `Invoke-SqlBulkCopy`, `Import-DataFile`
+**2. Single Responsibility (SRP)**: Split monolithic functions into focused, testable units:
+- **Import pipeline**: `Read-DatFileLines`, `New-ImportDataTable`, `Add-DataTableRows`, `Invoke-SqlBulkCopy`, `Import-DataFile`
+- **Type conversion**: 14 functions in DataImport/ (one per concern: reading, mapping, converting, validating)
+- **Orchestration**: 5 functions in Orchestration/ (context init, table processing, completion, validation)
 
 **3. Open/Closed (OCP)**: Dictionary dispatch pattern in `ConvertTo-TypedValue` makes adding new types straightforward
 
 **4. Locality of Behavior**: Constants defined within domain functions for clarity:
-- Batch sizes in `Invoke-SqlBulkCopy`, progress intervals in `Add-DataTableRows`, NULL representations in `Test-IsNullValue`
+- Batch sizes in `Private/DataImport/Invoke-SqlBulkCopy.ps1`
+- Progress intervals in `Private/DataImport/Add-DataTableRows.ps1`
+- NULL representations in `Private/DataImport/Test-IsNullValue.ps1`
 
 **5. Enhanced Validation**: PowerShell validation attributes (`ValidateScript`, `ValidatePattern`, `ValidateSet`)
 
-**6. Logging Strategy**: Uses built-in PowerShell cmdlets (`Write-Verbose`, `Write-Debug`, `Write-Warning`, `Write-Error`)
+**6. Folder Organization**: Functions grouped by responsibility (Database, DataImport, Orchestration, Validation, etc.)
 
 ### Benefits
-- 30% less code duplication
-- Better testability and maintainability
-- Easy extension (add switch cases or dictionary entries)
-- Self-documenting parameters
-- Local constants improve code readability
+- 40 focused functions instead of few monolithic ones
+- Better testability (each function independently testable)
+- Easier code reviews (smaller files, clear responsibilities)
+- Easy extension (add switch cases or new converter functions)
+- Self-documenting parameters with validation attributes
+- Clear separation of concerns
 
-### Common Module Functions
-See `Import-DATFile.Common.psm1` for shared utilities:
-- Module initialization, connection strings, validation
-- Type mapping and conversion (switch-based with dictionary dispatch)
-- DataTable creation
+### Maintenance Guidelines
 
-### Maintenance
-
-**Add new data types**: Add switch cases to `Get-SqlDataTypeMapping` and `Get-DotNetDataType` functions
+**Add new data types**:
+1. Add case to `Private/DataImport/Get-SqlDataTypeMapping.ps1` (Excel → SQL)
+2. Add case to `Private/DataImport/Get-DotNetDataType.ps1` (SQL → .NET)
+3. If complex conversion needed, create `Private/DataImport/ConvertTo-{Type}Value.ps1`
+4. Register converter in `ConvertTo-TypedValue.ps1` dictionary
 
 **Modify configuration**: Update constants within domain functions:
-  - Bulk copy settings: Edit `Invoke-SqlBulkCopy.ps1`
-  - Progress intervals: Edit `Add-DataTableRows.ps1`
-  - NULL representations: Edit `Test-IsNullValue.ps1`
+- Bulk copy settings: Edit `Private/DataImport/Invoke-SqlBulkCopy.ps1`
+- Progress intervals: Edit `Private/DataImport/Add-DataTableRows.ps1`
+- NULL representations: Edit `Private/DataImport/Test-IsNullValue.ps1`
 
-**Add validations**: Add functions to `Import-DATFile.Common.psm1` and export
+**Add validations**: Create new function in `Private/Validation/` folder (e.g., `Test-ConnectionString.ps1`)
+
+**Add database operations**: Create new function in `Private/Database/` folder
 
 **Function help**: All functions have comment-based help (`Get-Help <Function-Name> -Full`)
 
 ### Development Guidelines
 
 When adding features:
-1. Check Common module first (DRY)
+1. Determine appropriate folder: Database, DataImport, Orchestration, Validation, Specification, etc.
 2. Define constants locally within functions (locality of behavior)
 3. Add type mappings to switch statements (provides IntelliSense)
-4. Follow SRP (focused functions)
+4. Follow SRP (focused functions, ~100 lines max)
 5. Add parameter validation attributes
-6. Include comment-based help
-7. New functions should be created in the Private/ or Public/ folder structures, as part of their area of responsibility
-8. Each cmdlet should be created in its own file
+6. Include comment-based help with examples
+7. Create one function per file in appropriate Private/ subfolder
+8. Export only if needed by external consumers (add to Public/)

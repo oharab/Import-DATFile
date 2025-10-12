@@ -82,18 +82,19 @@ The project uses a **Private/Public module structure** following PowerShell best
 📁 Project Structure
 ├── 📦 SqlServerDataImport.psm1          # Root module loader
 ├── 📦 SqlServerDataImport.psd1          # Module manifest
-├── 🔧 Import-DATFile.Common.psm1        # Shared utilities
 │
-├── 📁 Public/                            # Exported functions
+├── 📁 Public/                            # Exported functions (1 function)
 │   └── Invoke-SqlServerDataImport.ps1
 │
-├── 📁 Private/                           # Internal implementation
-│   ├── Configuration/                    # Constants and type mappings
-│   ├── Database/                         # Database operations (6 functions)
-│   ├── DataImport/                       # Import pipeline (4 functions)
-│   ├── Specification/                    # Excel/file processing (2 functions)
+├── 📁 Private/                           # Internal implementation (40 functions)
+│   ├── Database/                         # Database operations (9 functions)
+│   ├── DataImport/                       # Import pipeline (14 functions)
+│   ├── Initialization/                   # Module setup (1 function)
+│   ├── Logging/                          # Logging & summary (4 functions)
+│   ├── Orchestration/                    # Workflow coordination (5 functions)
 │   ├── PostInstall/                      # Post-import scripts (1 function)
-│   └── Logging/                          # Logging & summary (4 functions)
+│   ├── Specification/                    # Excel/file processing (3 functions)
+│   └── Validation/                       # Input validation (2 functions)
 │
 ├── 🖥️ Import-GUI.ps1                    # Windows Forms GUI
 ├── ⌨️ Import-CLI.ps1                     # Command-line interface
@@ -104,8 +105,8 @@ The project uses a **Private/Public module structure** following PowerShell best
 
 **Benefits:**
 - **Clear API**: Only `Invoke-SqlServerDataImport` is exported
-- **Better Organization**: Functions grouped by concern (Database, DataImport, etc.)
-- **Code Reuse**: Common module eliminates duplication between CLI/GUI
+- **Better Organization**: 40 functions grouped by concern (Database, DataImport, Orchestration, etc.)
+- **Easy Testing**: Each function independently testable
 - **Maintainability**: Smaller, focused files (~100 lines each)
 
 ## 🎯 Usage Examples
