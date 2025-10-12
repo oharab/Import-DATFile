@@ -21,7 +21,7 @@ Describe "Get-SqlDataTypeMapping" {
 
         It "Should map VARCHAR without precision to default" {
             $result = Get-SqlDataTypeMapping -ExcelType "VARCHAR" -Precision ""
-            $result | Should -Match "VARCHAR\(\d+\)"
+            $result | Should -Be "VARCHAR(255)"  # Document exact default precision
         }
 
         It "Should map NVARCHAR to default (not explicitly defined)" {

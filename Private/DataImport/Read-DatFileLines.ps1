@@ -5,6 +5,7 @@ function Read-DatFileLines {
 
     .DESCRIPTION
     Reads file content and parses lines, handling embedded newlines in fields.
+    Uses ImportID prefix pattern to detect record boundaries.
     Returns structured records ready for DataTable population.
 
     .PARAMETER FilePath
@@ -13,8 +14,12 @@ function Read-DatFileLines {
     .PARAMETER ExpectedFieldCount
     Expected number of fields per record (ImportID + specification fields).
 
+    .PARAMETER Prefix
+    Data file prefix (e.g., "ABC_" from ABC_Employee.dat). Used to detect record boundaries
+    by identifying lines starting with this prefix as new records. Optional for backward compatibility.
+
     .EXAMPLE
-    $records = Read-DatFileLines -FilePath "C:\Data\Employee.dat" -ExpectedFieldCount 10
+    $records = Read-DatFileLines -FilePath "C:\Data\ABC_Employee.dat" -ExpectedFieldCount 10 -Prefix "ABC_"
     #>
     [CmdletBinding()]
     [OutputType([array])]
@@ -24,15 +29,20 @@ function Read-DatFileLines {
         [string]$FilePath,
 
         [Parameter(Mandatory=$true)]
-        [int]$ExpectedFieldCount
+        [int]$ExpectedFieldCount,
+
+        [Parameter(Mandatory=$false)]
+        [string]$Prefix = ""
     )
 
     Write-Verbose "Reading DAT file: $FilePath (Expected fields: $ExpectedFieldCount)"
 
-    $lines = Get-Content -Path $FilePath
+    # Ensure $lines is always an array (Get-Content returns scalar String for single-line files)
+    $lines = @(Get-Content -Path $FilePath)
     if ($lines.Count -eq 0) {
         Write-Warning "Data file is empty: $FilePath"
-        return @()
+        Write-Output -NoEnumerate @()  # Force return as array, not null
+        return
     }
 
     $records = @()
@@ -51,15 +61,35 @@ function Read-DatFileLines {
 
         # Start building record
         $accumulatedLine = $currentLine
-        $values = $accumulatedLine -split '\|', -1  # -1 to keep empty trailing fields
+        # Use .NET Split for reliable pipe splitting (PowerShell -split has issues in some environments)
+        $values = $accumulatedLine.Split('|')
         $linesConsumed = 1
 
-        # Accumulate lines until we have enough fields
+        # Accumulate lines until we have enough fields OR next line starts a new record
         while ($values.Length -lt $ExpectedFieldCount -and ($currentLineIndex + 1) -lt $totalLines) {
+            $nextLine = $lines[$currentLineIndex + 1]
+
+            # Check if next line starts with ImportID pattern (new record indicator)
+            # Build pattern based on prefix (e.g., "ABC_" means records start with "ABC_*|")
+            if (-not [string]::IsNullOrWhiteSpace($nextLine)) {
+                $importIdPattern = if ($Prefix) {
+                    # Use prefix-specific pattern (e.g., ^ABC_[A-Z0-9_-]*\|)
+                    "^$([regex]::Escape($Prefix))[A-Z0-9_-]*\|"
+                } else {
+                    # Generic pattern for backward compatibility (case-sensitive: uppercase letters, digits, _ -)
+                    '^[A-Z0-9_-]+\|'
+                }
+
+                if ($nextLine -cmatch $importIdPattern) {
+                    # Next line looks like a new record, don't accumulate (case-sensitive match)
+                    break
+                }
+            }
+
+            # Continue accumulating - this line is part of current record
             $currentLineIndex++
-            $nextLine = $lines[$currentLineIndex]
             $accumulatedLine += "`n" + $nextLine
-            $values = $accumulatedLine -split '\|', -1
+            $values = $accumulatedLine.Split('|')
             $linesConsumed++
         }
 
@@ -87,5 +117,5 @@ function Read-DatFileLines {
     }
 
     Write-Verbose "Read $($records.Count) records from file"
-    return $records
+    Write-Output -NoEnumerate $records  # Force return as array, not null (for empty case)
 }

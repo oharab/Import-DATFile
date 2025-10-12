@@ -31,6 +31,9 @@ function Add-DataTableRows {
         [array]$Fields
     )
 
+    # Progress reporting configuration
+    $progressInterval = 10000  # Report progress every N rows
+
     Write-Verbose "Populating DataTable with $($Records.Count) records"
 
     $rowCount = 0
@@ -47,14 +50,20 @@ function Add-DataTableRows {
             $fieldName = $Fields[$i].'Column name'
             $columnType = $DataTable.Columns[$fieldName].DataType
 
-            # Use centralized type conversion
-            $dataRow[$fieldName] = ConvertTo-TypedValue -Value $value -TargetType $columnType -FieldName $fieldName -LineNumber $record.LineNumber
+            # Use centralized type conversion with error handling
+            try {
+                $dataRow[$fieldName] = ConvertTo-TypedValue -Value $value -TargetType $columnType -FieldName $fieldName -LineNumber $record.LineNumber
+            }
+            catch {
+                Write-Error "Failed to convert value '$value' for field '$fieldName' at line $($record.LineNumber): $($_.Exception.Message)"
+                throw  # Re-throw to halt import on data quality issues
+            }
         }
 
         $DataTable.Rows.Add($dataRow)
         $rowCount++
 
-        if ($rowCount % $script:PROGRESS_REPORT_INTERVAL -eq 0) {
+        if ($rowCount % $progressInterval -eq 0) {
             Write-Host "  Processed $rowCount rows..." -ForegroundColor Gray
         }
     }

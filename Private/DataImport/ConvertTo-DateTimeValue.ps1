@@ -4,8 +4,8 @@ function ConvertTo-DateTimeValue {
     Converts a string value to DateTime.
 
     .DESCRIPTION
-    Attempts to parse datetime values using multiple formats with InvariantCulture.
-    Tries exact format matching first, then fallback to culture-aware parsing.
+    Parses datetime values using strict ISO 8601 formats only.
+    Accepts: yyyy-MM-dd HH:mm:ss.fff|ff|f, yyyy-MM-dd HH:mm:ss, yyyy-MM-dd
 
     .PARAMETER Value
     String value to convert.
@@ -29,17 +29,17 @@ function ConvertTo-DateTimeValue {
         'yyyy-MM-dd'
     )
 
-    # Try exact format matching first
+    # Try exact format matching (strict ISO 8601 only)
     foreach ($format in $supportedFormats) {
         try {
             $result = [DateTime]::ParseExact($Value, $format, [System.Globalization.CultureInfo]::InvariantCulture)
             return $result
         }
-        catch {
-            # Try next format
+        catch [System.FormatException] {
+            # Try next format - only catch format errors
         }
     }
 
-    # Fallback to culture-aware parsing
-    return [DateTime]::Parse($Value, [System.Globalization.CultureInfo]::InvariantCulture)
+    # No format matched - throw error
+    throw "Invalid datetime format '$Value'. Expected ISO 8601 formats: yyyy-MM-dd [HH:mm:ss[.fff]]"
 }

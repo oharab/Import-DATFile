@@ -49,10 +49,11 @@ function Get-DotNetDataType {
     # Remove precision/scale if present (e.g., "VARCHAR(100)" → "VARCHAR")
     $baseType = ($SqlType -replace '\(.*\)', '').ToUpper()
 
-    # Lookup type mapping
-    if ($typeMappings.ContainsKey($baseType)) {
-        Write-Verbose "Mapped SQL type '$SqlType' to .NET type '$($typeMappings[$baseType].FullName)'"
-        return $typeMappings[$baseType]
+    # Lookup type mapping (single lookup)
+    $mappedType = $typeMappings[$baseType]
+    if ($mappedType) {
+        Write-Verbose "Mapped SQL type '$SqlType' to .NET type '$($mappedType.FullName)'"
+        return $mappedType
     }
 
     # Default to String for all unmapped types (VARCHAR, NVARCHAR, CHAR, TEXT, etc.)

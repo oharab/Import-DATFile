@@ -28,6 +28,12 @@ function ConvertTo-IntegerValue {
     # Parse as decimal first to handle decimal notation (e.g., "123.0")
     $decimalValue = [Decimal]::Parse($Value, [System.Globalization.CultureInfo]::InvariantCulture)
 
+    # Validate no non-zero fractional part (prevents silent data loss)
+    $fractionalPart = $decimalValue - [Math]::Truncate($decimalValue)
+    if ($fractionalPart -ne 0) {
+        throw "Cannot convert '$Value' to $($TargetType.Name): value has non-zero fractional part ($fractionalPart)"
+    }
+
     # Cast to target integer type
     return $decimalValue -as $TargetType
 }

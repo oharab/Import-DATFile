@@ -325,20 +325,53 @@ Describe "ConvertTo-TypedValue" {
     }
 
     Context "Error Handling" {
-        It "Should return original string on conversion error with warning" {
-            $invalidDate = "not-a-valid-date"
-            $result = ConvertTo-TypedValue -Value $invalidDate -TargetType ([System.DateTime]) -FieldName "TestDate" -WarningAction SilentlyContinue
-
-            # Current behavior: returns original string on error
-            $result | Should -Be "not-a-valid-date"
+        It "Should throw on invalid date conversion" {
+            { ConvertTo-TypedValue -Value "not-a-valid-date" -TargetType ([System.DateTime]) -FieldName "TestDate" } |
+                Should -Throw
         }
 
-        It "Should return original string on invalid integer conversion" {
-            $invalidInt = "not-an-integer"
-            $result = ConvertTo-TypedValue -Value $invalidInt -TargetType ([System.Int32]) -FieldName "TestInt" -WarningAction SilentlyContinue
+        It "Should throw on invalid integer conversion" {
+            { ConvertTo-TypedValue -Value "not-an-integer" -TargetType ([System.Int32]) -FieldName "TestInt" } |
+                Should -Throw
+        }
 
-            # Current behavior: returns original string on error
-            $result | Should -Be "not-an-integer"
+        It "Should throw on invalid boolean conversion" {
+            { ConvertTo-TypedValue -Value "maybe" -TargetType ([System.Boolean]) -FieldName "TestBool" } |
+                Should -Throw "*Invalid boolean*"
+        }
+
+        It "Should throw on decimal with non-zero fractional part for integer" {
+            { ConvertTo-TypedValue -Value "123.45" -TargetType ([System.Int32]) -FieldName "TestInt" } |
+                Should -Throw
+        }
+    }
+
+    Context "NULL Handling Across All Types" {
+        It "Should return DBNull for empty string" {
+            ConvertTo-TypedValue -Value "" -TargetType ([DateTime]) | Should -Be ([DBNull]::Value)
+            ConvertTo-TypedValue -Value "" -TargetType ([Int32]) | Should -Be ([DBNull]::Value)
+            ConvertTo-TypedValue -Value "" -TargetType ([Boolean]) | Should -Be ([DBNull]::Value)
+            ConvertTo-TypedValue -Value "" -TargetType ([String]) | Should -Be ([DBNull]::Value)
+        }
+
+        It "Should return DBNull for whitespace" {
+            ConvertTo-TypedValue -Value "   " -TargetType ([DateTime]) | Should -Be ([DBNull]::Value)
+            ConvertTo-TypedValue -Value "   " -TargetType ([Int32]) | Should -Be ([DBNull]::Value)
+        }
+
+        It "Should return DBNull for 'NULL'" {
+            ConvertTo-TypedValue -Value "NULL" -TargetType ([DateTime]) | Should -Be ([DBNull]::Value)
+            ConvertTo-TypedValue -Value "NULL" -TargetType ([Int32]) | Should -Be ([DBNull]::Value)
+        }
+
+        It "Should return DBNull for 'NA'" {
+            ConvertTo-TypedValue -Value "NA" -TargetType ([DateTime]) | Should -Be ([DBNull]::Value)
+            ConvertTo-TypedValue -Value "NA" -TargetType ([Int32]) | Should -Be ([DBNull]::Value)
+        }
+
+        It "Should return DBNull for 'N/A'" {
+            ConvertTo-TypedValue -Value "N/A" -TargetType ([DateTime]) | Should -Be ([DBNull]::Value)
+            ConvertTo-TypedValue -Value "N/A" -TargetType ([Int32]) | Should -Be ([DBNull]::Value)
         }
     }
 }

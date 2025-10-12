@@ -5,7 +5,7 @@ function ConvertTo-BooleanValue {
 
     .DESCRIPTION
     Recognizes multiple boolean representations (1/0, TRUE/FALSE, YES/NO, Y/N, T/F)
-    in a case-insensitive manner. Defaults to False for invalid values with warning.
+    in a case-insensitive manner. Throws exception for invalid values.
 
     .PARAMETER Value
     String value to convert.
@@ -23,6 +23,7 @@ function ConvertTo-BooleanValue {
     [OutputType([bool])]
     param(
         [Parameter(Mandatory=$true)]
+        [AllowEmptyString()]
         [string]$Value,
 
         [Parameter(Mandatory=$false)]
@@ -46,6 +47,5 @@ function ConvertTo-BooleanValue {
         return $false
     }
 
-    Write-Warning "Invalid boolean value '$Value' for field '$FieldName' at line $LineNumber. Using False."
-    return $false
+    throw "Invalid boolean value '$Value' for field '$FieldName' at line $LineNumber. Valid values: 1/0, TRUE/FALSE, YES/NO, Y/N, T/F (case-insensitive)."
 }

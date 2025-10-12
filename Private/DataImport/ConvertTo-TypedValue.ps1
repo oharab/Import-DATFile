@@ -44,28 +44,22 @@ function ConvertTo-TypedValue {
         return [DBNull]::Value
     }
 
-    try {
-        # Dictionary dispatch pattern - maps types to converter functions
-        $typeConverters = @{
-            [System.DateTime] = { ConvertTo-DateTimeValue -Value $Value }
-            [System.Int32]    = { ConvertTo-IntegerValue -Value $Value -TargetType $TargetType }
-            [System.Int64]    = { ConvertTo-IntegerValue -Value $Value -TargetType $TargetType }
-            [System.Double]   = { ConvertTo-DecimalValue -Value $Value -TargetType $TargetType }
-            [System.Single]   = { ConvertTo-DecimalValue -Value $Value -TargetType $TargetType }
-            [System.Decimal]  = { ConvertTo-DecimalValue -Value $Value -TargetType $TargetType }
-            [System.Boolean]  = { ConvertTo-BooleanValue -Value $Value -FieldName $FieldName -LineNumber $LineNumber }
-        }
-
-        # If converter exists for this type, use it; otherwise return string
-        if ($typeConverters.ContainsKey($TargetType)) {
-            return & $typeConverters[$TargetType]
-        }
-
-        # Default: return as string
-        return $Value
+    # Dictionary dispatch pattern - maps types to converter functions
+    $typeConverters = @{
+        [System.DateTime] = { ConvertTo-DateTimeValue -Value $Value }
+        [System.Int32]    = { ConvertTo-IntegerValue -Value $Value -TargetType $TargetType }
+        [System.Int64]    = { ConvertTo-IntegerValue -Value $Value -TargetType $TargetType }
+        [System.Double]   = { ConvertTo-DecimalValue -Value $Value -TargetType $TargetType }
+        [System.Single]   = { ConvertTo-DecimalValue -Value $Value -TargetType $TargetType }
+        [System.Decimal]  = { ConvertTo-DecimalValue -Value $Value -TargetType $TargetType }
+        [System.Boolean]  = { ConvertTo-BooleanValue -Value $Value -FieldName $FieldName -LineNumber $LineNumber }
     }
-    catch {
-        Write-Warning "Error converting value '$Value' for field '$FieldName' at line $LineNumber to type $($TargetType.Name). Error: $($_.Exception.Message). Using original string value."
-        return $Value
+
+    # If converter exists for this type, use it; otherwise return string
+    if ($typeConverters.ContainsKey($TargetType)) {
+        return & $typeConverters[$TargetType]
     }
+
+    # Default: return as string
+    return $Value
 }
