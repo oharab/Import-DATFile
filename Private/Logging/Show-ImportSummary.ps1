@@ -41,7 +41,7 @@ function Show-ImportSummary {
         $totalRows += $item.RowCount
     }
 
-    # Display in formatted table
+    # Display in formatted table (pipe to Out-Host to prevent output stream pollution)
     $summaryData | Format-Table -Property @{
         Label = "Table Name"
         Expression = { $_.Table }
@@ -51,7 +51,7 @@ function Show-ImportSummary {
         Expression = { $_.Rows }
         Width = 15
         Alignment = "Right"
-    } -AutoSize
+    } -AutoSize | Out-Host
 
     Write-Host "=" * 50 -ForegroundColor Gray
     Write-Host "Total Tables Imported: $($script:ImportSummary.Count)" -ForegroundColor Green
