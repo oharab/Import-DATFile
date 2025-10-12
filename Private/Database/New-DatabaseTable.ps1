@@ -64,8 +64,17 @@ $($fieldDefinitions -join ",`n")
             Write-Verbose "Table [$SchemaName].[$TableName] created successfully"
         }
         catch {
-            Write-Error "Failed to create table [$SchemaName].[$TableName]: $($_.Exception.Message)"
-            throw "Failed to create table [$SchemaName].[$TableName]: $($_.Exception.Message)"
+            # Get detailed guidance with SQL statement
+            $guidance = Get-DatabaseErrorGuidance -Operation "TableCreate" `
+                                                  -ErrorMessage $_.Exception.Message `
+                                                  -Context @{
+                                                      SchemaName = $SchemaName
+                                                      TableName = $TableName
+                                                      SQL = $createTableQuery
+                                                  }
+
+            Write-Error $guidance
+            throw "Failed to create table [$SchemaName].[$TableName]. See error above for troubleshooting guidance."
         }
     }
     else {

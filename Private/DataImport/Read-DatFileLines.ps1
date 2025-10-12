@@ -41,8 +41,8 @@ function Read-DatFileLines {
     $lines = @(Get-Content -Path $FilePath)
     if ($lines.Count -eq 0) {
         Write-Warning "Data file is empty: $FilePath"
-        Write-Output -NoEnumerate @()  # Force return as array, not null
-        return
+        # Use comma operator to force array return (prevents PowerShell unwrapping to null)
+        return ,@()
     }
 
     $records = @()
@@ -117,5 +117,8 @@ function Read-DatFileLines {
     }
 
     Write-Verbose "Read $($records.Count) records from file"
-    Write-Output -NoEnumerate $records  # Force return as array, not null (for empty case)
+
+    # Return records array. Use comma operator to prevent PowerShell from unwrapping empty arrays
+    # This ensures empty arrays are returned as arrays, not null
+    ,$records
 }

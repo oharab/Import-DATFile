@@ -207,7 +207,7 @@ Describe "Read-DatFileLines" {
 
             # Assert
             $result.Count | Should -Be 0
-            $result | Should -BeOfType [System.Array]
+            ($result -is [Array]) | Should -Be $true
         }
 
         It "Should return empty array for file with only empty lines" {
@@ -267,7 +267,7 @@ Describe "Read-DatFileLines" {
         It "Should handle file with many records" {
             # Arrange
             $testFile = Join-Path $TestDrive "large.dat"
-            $recordCount = 1000
+            $recordCount = 1000  # Test with 1K records (typical production file size for performance validation)
             $content = 1..$recordCount | ForEach-Object { "ID$_|Name$_|Value$_" }
             Set-Content -Path $testFile -Value $content
 

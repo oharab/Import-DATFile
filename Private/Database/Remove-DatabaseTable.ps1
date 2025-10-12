@@ -43,8 +43,16 @@ function Remove-DatabaseTable {
             Write-Verbose "Table [$SchemaName].[$TableName] dropped successfully"
         }
         catch {
-            Write-Error "Failed to drop table [$SchemaName].[$TableName]: $($_.Exception.Message)"
-            throw "Failed to drop table [$SchemaName].[$TableName]: $($_.Exception.Message)"
+            # Get detailed guidance
+            $guidance = Get-DatabaseErrorGuidance -Operation "TableDrop" `
+                                                  -ErrorMessage $_.Exception.Message `
+                                                  -Context @{
+                                                      SchemaName = $SchemaName
+                                                      TableName = $TableName
+                                                  }
+
+            Write-Error $guidance
+            throw "Failed to drop table [$SchemaName].[$TableName]. See error above for troubleshooting guidance."
         }
     }
     else {

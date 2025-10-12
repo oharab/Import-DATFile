@@ -30,7 +30,25 @@ function Test-DatabaseConnection {
         return $true
     }
     catch {
-        Write-Error "Database connection failed: $($_.Exception.Message)"
+        # Extract server and database from connection string for context
+        $connBuilder = New-Object System.Data.SqlClient.SqlConnectionStringBuilder($ConnectionString)
+        $server = $connBuilder.DataSource
+        $database = $connBuilder.InitialCatalog
+        $username = $connBuilder.UserID
+
+        # Build context for guidance
+        $context = @{
+            Server = $server
+            Database = $database
+        }
+        if ($username) {
+            $context.Username = $username
+        }
+
+        # Get detailed guidance
+        $guidance = Get-DatabaseErrorGuidance -Operation "Connection" -ErrorMessage $_.Exception.Message -Context $context
+
+        Write-Error $guidance
         return $false
     }
 }

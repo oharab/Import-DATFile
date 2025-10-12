@@ -17,11 +17,14 @@ function ConvertTo-TypedValue {
     .PARAMETER FieldName
     Name of the field (for error reporting).
 
+    .PARAMETER TableName
+    Name of the table (for error reporting).
+
     .PARAMETER LineNumber
     Line number in source file (for error reporting).
 
     .EXAMPLE
-    ConvertTo-TypedValue -Value "2024-01-15" -TargetType ([DateTime]) -FieldName "BirthDate"
+    ConvertTo-TypedValue -Value "2024-01-15" -TargetType ([DateTime]) -FieldName "BirthDate" -TableName "Employee"
     #>
     [CmdletBinding()]
     param(
@@ -34,6 +37,9 @@ function ConvertTo-TypedValue {
 
         [Parameter(Mandatory=$false)]
         [string]$FieldName = "Unknown",
+
+        [Parameter(Mandatory=$false)]
+        [string]$TableName,
 
         [Parameter(Mandatory=$false)]
         [int]$LineNumber = 0
@@ -55,9 +61,31 @@ function ConvertTo-TypedValue {
         [System.Boolean]  = { ConvertTo-BooleanValue -Value $Value -FieldName $FieldName -LineNumber $LineNumber }
     }
 
-    # If converter exists for this type, use it; otherwise return string
+    # If converter exists for this type, use it with enhanced error handling
     if ($typeConverters.ContainsKey($TargetType)) {
-        return & $typeConverters[$TargetType]
+        try {
+            return & $typeConverters[$TargetType]
+        }
+        catch {
+            # Build context for error message
+            $contextParams = @{
+                Value = $Value
+                TargetType = $TargetType
+                FieldName = $FieldName
+            }
+            if ($TableName) {
+                $contextParams.TableName = $TableName
+            }
+            if ($LineNumber -gt 0) {
+                $contextParams.RowNumber = $LineNumber
+            }
+
+            # Get user-friendly guidance
+            $guidance = Get-ConversionGuidance @contextParams
+
+            # Throw error with guidance
+            throw $guidance
+        }
     }
 
     # Default: return as string

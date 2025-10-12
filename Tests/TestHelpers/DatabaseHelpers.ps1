@@ -104,8 +104,63 @@ function Test-LocalDbAvailable {
     }
 }
 
+function Test-SqlServerAvailable {
+    <#
+    .SYNOPSIS
+    Checks if a SQL Server instance is available and accepting connections.
+
+    .DESCRIPTION
+    Tests whether a SQL Server connection can be established.
+    Used to conditionally run real SQL Server integration tests.
+
+    .PARAMETER ServerName
+    SQL Server instance name. Defaults to "localhost".
+
+    .PARAMETER Database
+    Database name to connect to. Defaults to "master".
+
+    .PARAMETER TimeoutSeconds
+    Connection timeout in seconds. Defaults to 2.
+
+    .EXAMPLE
+    if (Test-SqlServerAvailable -ServerName "localhost") {
+        # Run real SQL Server tests
+    }
+
+    .EXAMPLE
+    $hasLocalDb = Test-SqlServerAvailable -ServerName "(localdb)\MSSQLLocalDB"
+    #>
+    [CmdletBinding()]
+    [OutputType([bool])]
+    param(
+        [Parameter(Mandatory=$false)]
+        [string]$ServerName = "localhost",
+
+        [Parameter(Mandatory=$false)]
+        [string]$Database = "master",
+
+        [Parameter(Mandatory=$false)]
+        [int]$TimeoutSeconds = 2
+    )
+
+    try {
+        $connectionString = "Server=$ServerName;Database=$Database;Integrated Security=True;Connection Timeout=$TimeoutSeconds"
+        $connection = New-Object System.Data.SqlClient.SqlConnection($connectionString)
+        $connection.Open()
+        $connection.Close()
+        $connection.Dispose()
+        Write-Verbose "SQL Server available at: $ServerName"
+        return $true
+    }
+    catch {
+        Write-Verbose "SQL Server not available at $ServerName : $($_.Exception.Message)"
+        return $false
+    }
+}
+
 Export-ModuleMember -Function @(
     'Initialize-TestDatabase',
     'Remove-TestDatabase',
-    'Test-LocalDbAvailable'
+    'Test-LocalDbAvailable',
+    'Test-SqlServerAvailable'
 )

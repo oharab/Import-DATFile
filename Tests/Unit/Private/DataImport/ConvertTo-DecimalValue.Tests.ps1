@@ -46,7 +46,7 @@ Describe "ConvertTo-DecimalValue" {
 
         It "Should handle scientific notation for Double" {
             $result = ConvertTo-DecimalValue -Value "1.23E+10" -TargetType ([Double])
-            $result | Should -BeGreaterThan 1.2e10
+            $result | Should -Be 1.23e10
         }
 
         It "Should handle very small numbers" {

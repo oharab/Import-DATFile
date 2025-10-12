@@ -50,8 +50,20 @@ END
             Write-Verbose "Schema '$SchemaName' is ready"
         }
         catch {
-            Write-Error "Failed to create schema '$SchemaName': $($_.Exception.Message)"
-            throw "Failed to create schema: $($_.Exception.Message)"
+            # Extract database from connection string for context
+            $connBuilder = New-Object System.Data.SqlClient.SqlConnectionStringBuilder($ConnectionString)
+            $database = $connBuilder.InitialCatalog
+
+            # Get detailed guidance
+            $guidance = Get-DatabaseErrorGuidance -Operation "Schema" `
+                                                  -ErrorMessage $_.Exception.Message `
+                                                  -Context @{
+                                                      SchemaName = $SchemaName
+                                                      Database = $database
+                                                  }
+
+            Write-Error $guidance
+            throw "Failed to create schema '$SchemaName'. See error above for troubleshooting guidance."
         }
     }
     else {

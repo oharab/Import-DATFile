@@ -43,8 +43,16 @@ function Clear-DatabaseTable {
             Write-Verbose "Table [$SchemaName].[$TableName] truncated successfully"
         }
         catch {
-            Write-Error "Failed to truncate table [$SchemaName].[$TableName]: $($_.Exception.Message)"
-            throw "Failed to truncate table [$SchemaName].[$TableName]: $($_.Exception.Message)"
+            # Get detailed guidance
+            $guidance = Get-DatabaseErrorGuidance -Operation "TableTruncate" `
+                                                  -ErrorMessage $_.Exception.Message `
+                                                  -Context @{
+                                                      SchemaName = $SchemaName
+                                                      TableName = $TableName
+                                                  }
+
+            Write-Error $guidance
+            throw "Failed to truncate table [$SchemaName].[$TableName]. See error above for troubleshooting guidance."
         }
     }
     else {

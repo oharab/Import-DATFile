@@ -8,6 +8,7 @@ BeforeAll {
 
     # Dot-source Private functions needed for testing
     . (Join-Path $moduleRoot "Private\DataImport\Test-IsNullValue.ps1")
+    . (Join-Path $moduleRoot "Private\DataImport\Get-ConversionGuidance.ps1")
     . (Join-Path $moduleRoot "Private\DataImport\ConvertTo-DateTimeValue.ps1")
     . (Join-Path $moduleRoot "Private\DataImport\ConvertTo-IntegerValue.ps1")
     . (Join-Path $moduleRoot "Private\DataImport\ConvertTo-DecimalValue.ps1")
@@ -335,9 +336,9 @@ Describe "ConvertTo-TypedValue" {
                 Should -Throw
         }
 
-        It "Should throw on invalid boolean conversion" {
+        It "Should throw on invalid boolean conversion with guidance" {
             { ConvertTo-TypedValue -Value "maybe" -TargetType ([System.Boolean]) -FieldName "TestBool" } |
-                Should -Throw "*Invalid boolean*"
+                Should -Throw "*Failed to convert value*boolean*"
         }
 
         It "Should throw on decimal with non-zero fractional part for integer" {

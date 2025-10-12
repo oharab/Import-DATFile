@@ -35,11 +35,18 @@ function Invoke-SqlServerDataImport {
     .PARAMETER PostInstallScripts
     Optional path to post-install SQL scripts.
 
+    .PARAMETER ValidateOnly
+    When specified, validates Excel specification and data files without importing to database.
+    Use this to verify your data and configuration before performing the actual import.
+
     .EXAMPLE
     Invoke-SqlServerDataImport -DataFolder "C:\Data" -ExcelSpecFile "ExportSpec.xlsx" -Server "localhost" -Database "MyDB" -SchemaName "dbo"
 
     .EXAMPLE
     Invoke-SqlServerDataImport -DataFolder "C:\Data" -ExcelSpecFile "ExportSpec.xlsx" -Server "localhost" -Database "MyDB" -Username "sa" -Password "P@ssw0rd"
+
+    .EXAMPLE
+    Invoke-SqlServerDataImport -DataFolder "C:\Data" -ExcelSpecFile "ExportSpec.xlsx" -Server "localhost" -Database "MyDB" -ValidateOnly
     #>
     [CmdletBinding(SupportsShouldProcess=$true)]
     [OutputType([array])]
@@ -71,7 +78,9 @@ function Invoke-SqlServerDataImport {
         [ValidateSet("Ask", "Skip", "Truncate", "Recreate")]
         [string]$TableExistsAction = "Ask",
 
-        [string]$PostInstallScripts
+        [string]$PostInstallScripts,
+
+        [switch]$ValidateOnly
     )
 
     # Set verbose logging flag
@@ -85,109 +94,84 @@ function Invoke-SqlServerDataImport {
     Write-Verbose "Connection string built for Server: $Server, Database: $Database"
 
     try {
-        Write-ImportLog "Starting SQL Server data import process" -Level "INFO"
-
-        # Validate Excel specification file
-        $excelPath = Join-Path $DataFolder $ExcelSpecFile
-        Test-ImportPath -Path $excelPath -PathType File -ThrowOnError
-
-        # Find prefix and validate connection
-        $prefix = Get-DataPrefix -FolderPath $DataFolder
-
-        if (-not (Test-DatabaseConnection -ConnectionString $connectionString)) {
-            throw "Database connection test failed"
+        if ($ValidateOnly) {
+            Write-ImportLog "Starting validation mode (no database changes will be made)" -Level "INFO"
+            Write-Host "`n=== VALIDATION MODE ===" -ForegroundColor Magenta
+            Write-Host "No data will be imported to the database.`n" -ForegroundColor Magenta
+        }
+        else {
+            Write-ImportLog "Starting SQL Server data import process" -Level "INFO"
         }
 
-        # Determine schema name
-        if (-not $SchemaName) {
-            $SchemaName = $prefix
-        }
+        # Initialize import context (validation, connection, schema setup, spec reading)
+        $context = Initialize-ImportContext -DataFolder $DataFolder `
+                                            -ExcelSpecFile $ExcelSpecFile `
+                                            -ConnectionString $connectionString `
+                                            -SchemaName $SchemaName `
+                                            -ValidateOnly:$ValidateOnly
 
-        # Validate schema name
-        Test-SchemaName -SchemaName $SchemaName -ThrowOnError
+        Write-Verbose "Import context initialized successfully"
 
-        # Create schema
-        New-DatabaseSchema -ConnectionString $connectionString -SchemaName $SchemaName
+        if ($ValidateOnly) {
+            # Validation mode: validate all data files without importing
+            $validationResults = @()
 
-        # Read table specifications
-        $tableSpecs = Get-TableSpecifications -ExcelPath $excelPath
+            foreach ($datFile in $context.DataFiles) {
+                # Extract table name from filename
+                $tableName = $datFile.Name -replace "^$($context.Prefix)", "" -replace "\.dat$", ""
+                Write-Host "`n=== Validating Table: $tableName ===" -ForegroundColor Cyan
 
-        # Get data files
-        $datFiles = Get-ChildItem -Path $DataFolder -Filter "*.dat" | Where-Object { $_.Name -like "$prefix*" }
+                # Get field specifications for this table
+                $tableFields = $context.TableSpecs | Where-Object { $_."Table name" -eq $tableName }
 
-        if ($datFiles.Count -eq 0) {
-            throw "No .dat files found with prefix '$prefix'"
-        }
-
-        Write-Host "`nFound $($datFiles.Count) data files to process:" -ForegroundColor Green
-        $datFiles | ForEach-Object { Write-Host "  $($_.Name)" }
-
-        # Process each data file
-        foreach ($datFile in $datFiles) {
-            $tableName = $datFile.Name -replace "^$prefix", "" -replace "\.dat$", ""
-            Write-Host "`n=== Processing Table: $tableName ===" -ForegroundColor Cyan
-
-            # Get field specifications for this table
-            $tableFields = $tableSpecs | Where-Object { $_."Table name" -eq $tableName }
-
-            if ($tableFields.Count -eq 0) {
-                Write-Warning "No field specifications found for table '$tableName' - skipping"
-                continue
-            }
-
-            Write-Host "Found $($tableFields.Count) field specifications for table '$tableName'"
-
-            # Handle existing tables
-            $tableExists = Test-TableExists -ConnectionString $connectionString -SchemaName $SchemaName -TableName $tableName
-
-            if ($tableExists) {
-                switch ($TableExistsAction) {
-                    "Skip" {
-                        Write-Host "Skipping existing table '$tableName'" -ForegroundColor Yellow
-                        continue
+                if ($tableFields.Count -eq 0) {
+                    Write-Warning "No field specifications found for table '$tableName' in Excel specification - skipping"
+                    $validationResults += @{
+                        TableName = $tableName
+                        IsValid = $false
+                        RowCount = 0
+                        Errors = @("No field specifications found in Excel")
+                        Warnings = @()
                     }
-                    "Truncate" {
-                        Clear-DatabaseTable -ConnectionString $connectionString -SchemaName $SchemaName -TableName $tableName
-                    }
-                    "Recreate" {
-                        Remove-DatabaseTable -ConnectionString $connectionString -SchemaName $SchemaName -TableName $tableName
-                        New-DatabaseTable -ConnectionString $connectionString -SchemaName $SchemaName -TableName $tableName -Fields $tableFields
-                    }
+                    continue
                 }
-            }
-            else {
-                New-DatabaseTable -ConnectionString $connectionString -SchemaName $SchemaName -TableName $tableName -Fields $tableFields
+
+                # Validate data file
+                $result = Test-DataFileValidation -FilePath $datFile.FullName `
+                                                  -Fields $tableFields `
+                                                  -TableName $tableName
+
+                $validationResults += $result
             }
 
-            # Import data
-            $rowsImported = Import-DataFile -ConnectionString $connectionString -SchemaName $SchemaName -TableName $tableName -FilePath $datFile.FullName -Fields $tableFields
+            # Display validation summary
+            Show-ValidationSummary -ValidationResults $validationResults -SchemaName $context.SchemaName
 
-            Add-ImportSummary -TableName $tableName -RowCount $rowsImported -FileName $datFile.Name
+            # Return validation results
+            Write-Output -NoEnumerate $validationResults
         }
+        else {
+            # Normal import mode: process each data file
+            foreach ($datFile in $context.DataFiles) {
+                $result = Invoke-TableImportProcess -DataFile $datFile `
+                                                    -ConnectionString $context.ConnectionString `
+                                                    -SchemaName $context.SchemaName `
+                                                    -Prefix $context.Prefix `
+                                                    -TableSpecs $context.TableSpecs `
+                                                    -TableExistsAction $TableExistsAction
 
-        # Display summary
-        Show-ImportSummary -SchemaName $SchemaName
-
-        Write-ImportLog "Import process completed successfully" -Level "SUCCESS"
-
-        # Execute post-install scripts if specified
-        if (-not [string]::IsNullOrWhiteSpace($PostInstallScripts)) {
-            Write-Host "`n=== Post-Install Scripts ===" -ForegroundColor Cyan
-            Write-Verbose "Post-install scripts path: $PostInstallScripts"
-
-            try {
-                Invoke-PostInstallScripts -ScriptPath $PostInstallScripts -ConnectionString $connectionString -DatabaseName $Database -SchemaName $SchemaName
-                Write-ImportLog "Post-install scripts completed successfully" -Level "SUCCESS"
+                Write-Verbose "Table import completed: $($result.TableName) ($($result.RowsImported) rows, Skipped: $($result.Skipped))"
             }
-            catch {
-                Write-Error "Post-install scripts failed: $($_.Exception.Message)"
-                Write-Host "`nWARNING: Post-install scripts failed but data import was successful" -ForegroundColor Yellow
-                Write-Host "Error: $($_.Exception.Message)" -ForegroundColor Red
-                # Don't throw - import was successful even if post-install failed
-            }
+
+            # Finalize import (summary display, post-install scripts)
+            Complete-ImportProcess -SchemaName $context.SchemaName `
+                                   -ConnectionString $context.ConnectionString `
+                                   -DatabaseName $Database `
+                                   -PostInstallScripts $PostInstallScripts
+
+            # Return import summary explicitly with Write-Output to ensure proper pipeline behavior
+            Write-Output -NoEnumerate $script:ImportSummary
         }
-
-        return $script:ImportSummary
     }
     catch {
         Write-Error "Import process failed: $($_.Exception.Message)"

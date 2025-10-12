@@ -80,25 +80,10 @@ Import-DATFile/
   - Lives in root directory (imported by CLI/GUI)
   - Connection string building (`New-SqlConnectionString`)
   - Module initialization (`Initialize-ImportModules`)
-  - Type mapping functions (configuration-driven)
+  - Type mapping functions (switch-based)
   - Type conversion utilities (`ConvertTo-TypedValue`)
   - Validation functions (`Test-ImportPath`, `Test-SchemaName`)
   - Eliminates code duplication between CLI and GUI
-
-**Private/Configuration:**
-- **Import-DATFile.Constants.ps1**: Centralized configuration constants
-  - Magic numbers and settings used throughout import
-  - Bulk copy batch size, timeouts, progress intervals
-  - Supported date formats, NULL representations
-  - Boolean value mappings
-  - Follows configuration over hard-coding principle
-
-- **TypeMappings.psd1**: Data type configuration file
-  - Configuration-based type mappings (Open/Closed Principle)
-  - SQL Server type mappings with regex patterns
-  - .NET type mappings for DataTable columns
-  - Easy to extend without code changes
-  - Supports precision/scale for numeric types
 
 **User Interfaces:**
 - **Import-CLI.ps1**: Interactive command-line interface
@@ -217,20 +202,22 @@ Import-DATFile/
 
 ## Configuration Architecture
 
-### Type Mappings (Open/Closed Principle)
-All type mappings defined in `Private/Configuration/TypeMappings.psd1`:
-- **SqlTypeMappings**: Regex patterns → SQL Server types
-- **DotNetTypeMappings**: SQL types → .NET types for DataTable
-- Add new types by editing config file (no code changes)
+### Type Mappings (Switch Statement Pattern)
+Type mappings use switch statements within conversion functions for better type safety:
+- **Get-SqlDataTypeMapping.ps1**: Excel types → SQL Server types (switch on Excel type names)
+- **Get-DotNetDataType.ps1**: SQL types → .NET types for DataTable columns
+- **ConvertTo-TypedValue.ps1**: Dictionary dispatch pattern for routing to specialized converters
+- Add new types by adding cases to switch statements (provides IntelliSense and compile-time safety)
 
-### Constants (Configuration Over Hard-Coding)
-All magic numbers in `Private/Configuration/Import-DATFile.Constants.ps1`:
-- `BULK_COPY_BATCH_SIZE = 10000`
-- `BULK_COPY_TIMEOUT_SECONDS = 300`
-- `PROGRESS_REPORT_INTERVAL = 10000`
-- `SUPPORTED_DATE_FORMATS` array
-- `NULL_REPRESENTATIONS` array
-- `BOOLEAN_TRUE_VALUES` / `BOOLEAN_FALSE_VALUES` arrays
+### Constants (Locality of Behavior)
+Constants are defined within their domain functions to maintain locality of behavior:
+- **Invoke-SqlBulkCopy.ps1**: Bulk copy configuration (`$batchSize = 10000`, `$timeoutSeconds = 300`)
+- **Add-DataTableRows.ps1**: Progress reporting interval (`$progressInterval = 10000`)
+- **Test-IsNullValue.ps1**: NULL representations (`@('NULL', 'NA', 'N/A')`)
+- **ConvertTo-BooleanValue.ps1**: Boolean value mappings (TRUE/FALSE, YES/NO, 1/0, etc.)
+- **ConvertTo-DateTimeValue.ps1**: Supported date formats (ISO 8601 variants)
+
+**Rationale:** These constants rarely change and are tightly coupled to their functions. Keeping them local improves readability, reduces indirection, and makes it clear where configuration values are used. This follows the principle of locality of behavior over premature abstraction.
 
 ## Data Format Requirements (Critical for Type Conversion)
 
@@ -299,8 +286,8 @@ Invoke-SqlServerDataImport @params
 
 **Type conversion issues**:
 - Always use InvariantCulture for numeric/date parsing
-- Update constants in `Import-DATFile.Constants.ps1`, not hard-coded values
-- Add new type mappings to `TypeMappings.psd1`, not code
+- Update constants within their domain functions (see "Constants (Locality of Behavior)" section)
+- Add new type mappings to switch statements in `Get-SqlDataTypeMapping` and `Get-DotNetDataType`
 
 **Breaking DRY principle**:
 - Check `Import-DATFile.Common.psm1` before duplicating code
@@ -322,10 +309,10 @@ Branch: `refactor/dry-solid-improvements`
 **2. Single Responsibility (SRP)**: Split `Import-DataFile` (280 lines, 8+ responsibilities) into focused functions:
 - `Read-DatFileLines`, `New-ImportDataTable`, `Add-DataTableRows`, `Invoke-SqlBulkCopy`, `Import-DataFile`
 
-**3. Open/Closed (OCP)**: Configuration-driven type mappings in `TypeMappings.psd1` (vs hard-coded switch statements)
+**3. Open/Closed (OCP)**: Dictionary dispatch pattern in `ConvertTo-TypedValue` makes adding new types straightforward
 
-**4. Configuration Over Hard-Coding**: Constants in `Import-DATFile.Constants.ps1`:
-- Batch sizes, timeouts, date formats, NULL representations, boolean mappings
+**4. Locality of Behavior**: Constants defined within domain functions for clarity:
+- Batch sizes in `Invoke-SqlBulkCopy`, progress intervals in `Add-DataTableRows`, NULL representations in `Test-IsNullValue`
 
 **5. Enhanced Validation**: PowerShell validation attributes (`ValidateScript`, `ValidatePattern`, `ValidateSet`)
 
@@ -334,20 +321,24 @@ Branch: `refactor/dry-solid-improvements`
 ### Benefits
 - 30% less code duplication
 - Better testability and maintainability
-- Easy extension (edit config files, not code)
+- Easy extension (add switch cases or dictionary entries)
 - Self-documenting parameters
+- Local constants improve code readability
 
 ### Common Module Functions
 See `Import-DATFile.Common.psm1` for shared utilities:
 - Module initialization, connection strings, validation
-- Type mapping and conversion (configuration-driven)
+- Type mapping and conversion (switch-based with dictionary dispatch)
 - DataTable creation
 
 ### Maintenance
 
-**Add new data types**: Edit `TypeMappings.psd1` (no code changes)
+**Add new data types**: Add switch cases to `Get-SqlDataTypeMapping` and `Get-DotNetDataType` functions
 
-**Modify configuration**: Edit `Import-DATFile.Constants.ps1` (batch sizes, timeouts, formats)
+**Modify configuration**: Update constants within domain functions:
+  - Bulk copy settings: Edit `Invoke-SqlBulkCopy.ps1`
+  - Progress intervals: Edit `Add-DataTableRows.ps1`
+  - NULL representations: Edit `Test-IsNullValue.ps1`
 
 **Add validations**: Add functions to `Import-DATFile.Common.psm1` and export
 
@@ -357,9 +348,10 @@ See `Import-DATFile.Common.psm1` for shared utilities:
 
 When adding features:
 1. Check Common module first (DRY)
-2. Use constants from `Constants.ps1` (no magic numbers)
-3. Use type mappings from `TypeMappings.psd1` (OCP)
+2. Define constants locally within functions (locality of behavior)
+3. Add type mappings to switch statements (provides IntelliSense)
 4. Follow SRP (focused functions)
 5. Add parameter validation attributes
 6. Include comment-based help
-- New functions should be created in the @Private/ or @Public/ folder structures, as part of their area of responsibility cmdlets should be created in their own file.
+7. New functions should be created in the Private/ or Public/ folder structures, as part of their area of responsibility
+8. Each cmdlet should be created in its own file

@@ -68,8 +68,8 @@ function Import-DataFile {
     # Step 2: Create DataTable structure
     $dataTable = New-ImportDataTable -Fields $Fields
 
-    # Step 3: Populate DataTable with type conversion
-    Add-DataTableRows -DataTable $dataTable -Records $records -Fields $Fields
+    # Step 3: Populate DataTable with type conversion (pass TableName for error context)
+    Add-DataTableRows -DataTable $dataTable -Records $records -Fields $Fields -TableName $TableName
 
     # Step 4: Perform bulk copy (or skip if WhatIf)
     if ($PSCmdlet.ShouldProcess("[$SchemaName].[$TableName]", "Import $($records.Count) rows from $fileName")) {

@@ -16,8 +16,11 @@ function Add-DataTableRows {
     .PARAMETER Fields
     Field specifications.
 
+    .PARAMETER TableName
+    Table name (for error reporting context).
+
     .EXAMPLE
-    Add-DataTableRows -DataTable $dt -Records $records -Fields $fields
+    Add-DataTableRows -DataTable $dt -Records $records -Fields $fields -TableName "Employee"
     #>
     [CmdletBinding()]
     param(
@@ -28,7 +31,10 @@ function Add-DataTableRows {
         [array]$Records,
 
         [Parameter(Mandatory=$true)]
-        [array]$Fields
+        [array]$Fields,
+
+        [Parameter(Mandatory=$false)]
+        [string]$TableName
     )
 
     # Progress reporting configuration
@@ -52,10 +58,19 @@ function Add-DataTableRows {
 
             # Use centralized type conversion with error handling
             try {
-                $dataRow[$fieldName] = ConvertTo-TypedValue -Value $value -TargetType $columnType -FieldName $fieldName -LineNumber $record.LineNumber
+                $convertParams = @{
+                    Value = $value
+                    TargetType = $columnType
+                    FieldName = $fieldName
+                    LineNumber = $record.LineNumber
+                }
+                if ($TableName) {
+                    $convertParams.TableName = $TableName
+                }
+                $dataRow[$fieldName] = ConvertTo-TypedValue @convertParams
             }
             catch {
-                Write-Error "Failed to convert value '$value' for field '$fieldName' at line $($record.LineNumber): $($_.Exception.Message)"
+                Write-Error $_.Exception.Message
                 throw  # Re-throw to halt import on data quality issues
             }
         }
