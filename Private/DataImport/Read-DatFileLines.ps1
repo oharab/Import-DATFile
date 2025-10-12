@@ -97,15 +97,22 @@ function Read-DatFileLines {
         if ($values.Length -ne $ExpectedFieldCount) {
             $previewLength = 200  # Characters to show in error preview
             $endLineNumber = $startLineNumber + $linesConsumed - 1
-            Write-Error "Field count mismatch at lines $startLineNumber-$endLineNumber. Expected $ExpectedFieldCount, got $($values.Length)"
             $preview = $accumulatedLine.Substring(0, [Math]::Min($previewLength, $accumulatedLine.Length))
-            Write-Host "FAILED at line $startLineNumber (consumed $linesConsumed lines)" -ForegroundColor Red
-            Write-Host "Content preview: $preview..." -ForegroundColor Red
-            throw "Field count mismatch at lines $startLineNumber-$endLineNumber. Expected $ExpectedFieldCount fields, got $($values.Length)."
+
+            # Build comprehensive error message with all context
+            $errorMessage = @"
+Field count mismatch at lines $startLineNumber-$endLineNumber.
+Expected: $ExpectedFieldCount fields
+Got: $($values.Length) fields
+Consumed: $linesConsumed line(s)
+Content preview: $preview...
+"@
+
+            throw $errorMessage
         }
 
         if ($linesConsumed -gt 1) {
-            Write-Host "  Multi-line record at line $startLineNumber (spans $linesConsumed lines)" -ForegroundColor Cyan
+            Write-Verbose "Multi-line record at line $startLineNumber (spans $linesConsumed lines)"
         }
 
         $records += [PSCustomObject]@{
