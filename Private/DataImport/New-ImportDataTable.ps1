@@ -29,7 +29,7 @@ function New-ImportDataTable {
     $importIdColumn = New-Object System.Data.DataColumn
     $importIdColumn.ColumnName = "ImportID"
     $importIdColumn.DataType = [System.String]
-    $dataTable.Columns.Add($importIdColumn)
+    [void]$dataTable.Columns.Add($importIdColumn)
 
     # Add columns for each field from specification with proper data types
     foreach ($field in $Fields) {
@@ -40,9 +40,10 @@ function New-ImportDataTable {
         $sqlType = Get-SqlDataTypeMapping -ExcelType $field."Data type" -Precision $field.Precision
         $column.DataType = Get-DotNetDataType -SqlType $sqlType
 
-        $dataTable.Columns.Add($column)
+        [void]$dataTable.Columns.Add($column)
         Write-Verbose "Added column: $($column.ColumnName) (Type: $($column.DataType.Name))"
     }
 
-    return $dataTable
+    # Use comma operator to prevent PowerShell from unwrapping empty DataTable to $null
+    return ,$dataTable
 }
