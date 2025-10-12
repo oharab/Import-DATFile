@@ -41,8 +41,8 @@ function Get-DatabaseErrorGuidance {
     # Add operation-specific context
     switch ($Operation) {
         "Connection" {
-            $server = $Context.Server ?? "unknown"
-            $database = $Context.Database ?? "unknown"
+            $server = if ($Context.Server) { $Context.Server } else { "unknown" }
+            $database = if ($Context.Database) { $Context.Database } else { "unknown" }
             $authType = if ($Context.Username) { "SQL Authentication" } else { "Windows Authentication" }
 
             $guidance += "Failed to connect to SQL Server"
@@ -72,8 +72,8 @@ function Get-DatabaseErrorGuidance {
         }
 
         "Schema" {
-            $schemaName = $Context.SchemaName ?? "unknown"
-            $database = $Context.Database ?? "unknown"
+            $schemaName = if ($Context.SchemaName) { $Context.SchemaName } else { "unknown" }
+            $database = if ($Context.Database) { $Context.Database } else { "unknown" }
 
             $guidance += "Failed to create schema [$schemaName] in database '$database'"
             $guidance += ""
@@ -88,8 +88,8 @@ function Get-DatabaseErrorGuidance {
         }
 
         "TableCreate" {
-            $schemaName = $Context.SchemaName ?? "unknown"
-            $tableName = $Context.TableName ?? "unknown"
+            $schemaName = if ($Context.SchemaName) { $Context.SchemaName } else { "unknown" }
+            $tableName = if ($Context.TableName) { $Context.TableName } else { "unknown" }
             $sql = $Context.SQL
 
             $guidance += "Failed to create table [$schemaName].[$tableName]"
@@ -113,8 +113,8 @@ function Get-DatabaseErrorGuidance {
         }
 
         "TableTruncate" {
-            $schemaName = $Context.SchemaName ?? "unknown"
-            $tableName = $Context.TableName ?? "unknown"
+            $schemaName = if ($Context.SchemaName) { $Context.SchemaName } else { "unknown" }
+            $tableName = if ($Context.TableName) { $Context.TableName } else { "unknown" }
 
             $guidance += "Failed to truncate table [$schemaName].[$tableName]"
             $guidance += ""
@@ -133,8 +133,8 @@ function Get-DatabaseErrorGuidance {
         }
 
         "TableDrop" {
-            $schemaName = $Context.SchemaName ?? "unknown"
-            $tableName = $Context.TableName ?? "unknown"
+            $schemaName = if ($Context.SchemaName) { $Context.SchemaName } else { "unknown" }
+            $tableName = if ($Context.TableName) { $Context.TableName } else { "unknown" }
 
             $guidance += "Failed to drop table [$schemaName].[$tableName]"
             $guidance += ""
