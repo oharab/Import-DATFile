@@ -38,8 +38,15 @@ foreach ($function in $privateFunctions) {
 Write-Verbose "Loaded $($privateFunctions.Count) private functions"
 
 # Initialize external module dependencies (SqlServer, ImportExcel)
+# This must be called AFTER all Private functions are loaded
 Write-Verbose "Initializing external module dependencies..."
-Initialize-ImportModules -ThrowOnError
+
+if (Get-Command -Name Initialize-ImportModules -ErrorAction SilentlyContinue) {
+    Initialize-ImportModules -ThrowOnError
+}
+else {
+    throw "Critical error: Initialize-ImportModules function not loaded. Module cannot initialize external dependencies (SqlServer, ImportExcel)."
+}
 
 # Dot-source all Public functions
 Write-Verbose "Loading Public functions from: $moduleRoot\Public"
