@@ -398,30 +398,52 @@ Skip: Skip tables that already exist
             return
         }
 
-        # Validate database connection fields
-        if ([string]::IsNullOrWhiteSpace($serverTextBox.Text)) {
-            [System.Windows.Forms.MessageBox]::Show("Please enter a SQL Server instance name.", "Error", "OK", "Error")
-            return
-        }
-
-        if ([string]::IsNullOrWhiteSpace($databaseTextBox.Text)) {
-            [System.Windows.Forms.MessageBox]::Show("Please enter a database name.", "Error", "OK", "Error")
-            return
-        }
-
-        if ($authComboBox.SelectedIndex -eq 1) {
-            if ([string]::IsNullOrWhiteSpace($usernameTextBox.Text)) {
-                [System.Windows.Forms.MessageBox]::Show("Please enter a username for SQL Server authentication.", "Error", "OK", "Error")
+        # Validate database connection fields (only if NOT in validation mode)
+        if (-not $validateOnlyCheckBox.Checked) {
+            if ([string]::IsNullOrWhiteSpace($serverTextBox.Text)) {
+                [System.Windows.Forms.MessageBox]::Show("Please enter a SQL Server instance name.", "Error", "OK", "Error")
                 return
             }
-            if ([string]::IsNullOrWhiteSpace($passwordTextBox.Text)) {
-                [System.Windows.Forms.MessageBox]::Show("Please enter a password for SQL Server authentication.", "Error", "OK", "Error")
+
+            if ([string]::IsNullOrWhiteSpace($databaseTextBox.Text)) {
+                [System.Windows.Forms.MessageBox]::Show("Please enter a database name.", "Error", "OK", "Error")
                 return
+            }
+
+            if ($authComboBox.SelectedIndex -eq 1) {
+                if ([string]::IsNullOrWhiteSpace($usernameTextBox.Text)) {
+                    [System.Windows.Forms.MessageBox]::Show("Please enter a username for SQL Server authentication.", "Error", "OK", "Error")
+                    return
+                }
+                if ([string]::IsNullOrWhiteSpace($passwordTextBox.Text)) {
+                    [System.Windows.Forms.MessageBox]::Show("Please enter a password for SQL Server authentication.", "Error", "OK", "Error")
+                    return
+                }
+            }
+        } else {
+            # Validation mode - set dummy values if empty to avoid null errors
+            if ([string]::IsNullOrWhiteSpace($serverTextBox.Text)) {
+                $serverTextBox.Text = "localhost"
+            }
+            if ([string]::IsNullOrWhiteSpace($databaseTextBox.Text)) {
+                $databaseTextBox.Text = "tempdb"
             }
         }
 
-        # Show confirmation of optimized assumptions
-        $confirmResult = [System.Windows.Forms.MessageBox]::Show(@"
+        # Show confirmation (different messages for validation vs import)
+        if ($validateOnlyCheckBox.Checked) {
+            $confirmResult = [System.Windows.Forms.MessageBox]::Show(@"
+VALIDATION MODE:
+• Excel specification will be checked for errors
+• Data files will be validated for format issues
+• Field counts and data types will be verified
+• NO data will be imported to any database
+• NO database connection will be made
+
+Proceed with validation?
+"@, "Confirm Validation", "YesNo", "Question")
+        } else {
+            $confirmResult = [System.Windows.Forms.MessageBox]::Show(@"
 OPTIMIZED IMPORT ASSUMPTIONS:
 • Every data file MUST have ImportID as first field
 • Field count MUST match exactly (ImportID + spec fields)
@@ -431,6 +453,7 @@ OPTIMIZED IMPORT ASSUMPTIONS:
 
 Do you want to continue with these assumptions?
 "@, "Confirm Optimized Import", "YesNo", "Question")
+        }
 
         if ($confirmResult -eq "No") {
             return

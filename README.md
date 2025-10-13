@@ -25,32 +25,29 @@ A powerful PowerShell script that imports pipe-separated `.dat` files into SQL S
 
 3. **Run the Import**
    ```powershell
-   # Interactive mode (prompts for all inputs)
-   .\Import-CLI.ps1
-
-   # Windows Authentication
+   # Windows Authentication (all parameters required)
    .\Import-CLI.ps1 -DataFolder "C:\Data" -ExcelSpecFile "ExportSpec.xlsx" -Server "localhost" -Database "MyDB"
 
    # SQL Authentication
-   .\Import-CLI.ps1 -DataFolder "C:\Data" -Server "localhost" -Database "MyDB" -Username "sa" -Password "YourPassword"
+   .\Import-CLI.ps1 -DataFolder "C:\Data" -ExcelSpecFile "ExportSpec.xlsx" -Server "localhost" -Database "MyDB" -Username "sa" -Password "YourPassword"
 
    # Validate data without database import (no SQL Server connection required)
-   .\Import-CLI.ps1 -DataFolder "C:\Data" -ExcelSpecFile "ExportSpec.xlsx" -Server "localhost" -Database "MyDB" -ValidateOnly
+   .\Import-CLI.ps1 -DataFolder "C:\Data" -ExcelSpecFile "ExportSpec.xlsx" -ValidateOnly
 
-   # Specify schema name without prompts
-   .\Import-CLI.ps1 -DataFolder "C:\Data" -Server "localhost" -Database "MyDB" -SchemaName "MySchema"
+   # Specify custom schema name
+   .\Import-CLI.ps1 -DataFolder "C:\Data" -ExcelSpecFile "ExportSpec.xlsx" -Server "localhost" -Database "MyDB" -SchemaName "MySchema"
 
    # Force mode (drops/recreates all tables - DELETES existing data!)
-   .\Import-CLI.ps1 -DataFolder "C:\Data" -Server "localhost" -Database "MyDB" -Force
+   .\Import-CLI.ps1 -DataFolder "C:\Data" -ExcelSpecFile "ExportSpec.xlsx" -Server "localhost" -Database "MyDB" -Force
 
    # Dry run (preview without making changes)
-   .\Import-CLI.ps1 -DataFolder "C:\Data" -Server "localhost" -Database "MyDB" -WhatIf
+   .\Import-CLI.ps1 -DataFolder "C:\Data" -ExcelSpecFile "ExportSpec.xlsx" -Server "localhost" -Database "MyDB" -WhatIf
 
    # Verbose logging for troubleshooting
-   .\Import-CLI.ps1 -DataFolder "C:\Data" -Server "localhost" -Database "MyDB" -Verbose
+   .\Import-CLI.ps1 -DataFolder "C:\Data" -ExcelSpecFile "ExportSpec.xlsx" -Server "localhost" -Database "MyDB" -Verbose
    ```
 
-The script will guide you through the configuration process!
+**Note:** CLI is non-interactive - all parameters must be provided. For an interactive experience, use the GUI.
 
 ## 📁 What You Need
 
@@ -135,30 +132,34 @@ The project uses a **Private/Public module structure** following PowerShell best
 
 ### ⌨️ Command Line Interface
 
-#### Basic Usage (Interactive)
-```powershell
-.\Import-CLI.ps1
-```
-The script will prompt you for:
-- Data folder location (defaults to current directory)
-- Excel specification file name (defaults to "ExportSpec.xlsx")
-- Database connection details
-- Schema name (defaults to detected prefix)
+**Note:** CLI is non-interactive and designed for scripting. All parameters must be provided explicitly.
 
-#### Non-Interactive with Parameters
+#### Basic Usage
 ```powershell
-# Fully automated (no prompts)
-.\Import-CLI.ps1 -DataFolder "C:\MyData" -ExcelSpecFile "MySpecs.xlsx" -Server "localhost" -Database "MyDB" -SchemaName "dbo"
+# All parameters required (except in ValidateOnly mode)
+.\Import-CLI.ps1 -DataFolder "C:\MyData" -ExcelSpecFile "MySpecs.xlsx" -Server "localhost" -Database "MyDB"
 ```
 
 #### Validation Only (No Database Required)
 ```powershell
-.\Import-CLI.ps1 -DataFolder "C:\MyData" -ExcelSpecFile "MySpecs.xlsx" -Server "localhost" -Database "MyDB" -ValidateOnly
+# Server/Database not required in validation mode
+.\Import-CLI.ps1 -DataFolder "C:\MyData" -ExcelSpecFile "MySpecs.xlsx" -ValidateOnly
+```
+
+#### With Custom Schema
+```powershell
+.\Import-CLI.ps1 -DataFolder "C:\MyData" -ExcelSpecFile "MySpecs.xlsx" -Server "localhost" -Database "MyDB" -SchemaName "CustomSchema"
 ```
 
 #### With Verbose Logging
 ```powershell
-.\Import-CLI.ps1 -Verbose
+.\Import-CLI.ps1 -DataFolder "C:\MyData" -ExcelSpecFile "MySpecs.xlsx" -Server "localhost" -Database "MyDB" -Verbose
+```
+
+#### For Interactive Experience
+Use the GUI instead:
+```powershell
+.\Launch-Import-GUI.bat
 ```
 
 ## 📋 Data Type Support

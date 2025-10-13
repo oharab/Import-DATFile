@@ -1,12 +1,23 @@
 # SQL Server Data Import - Command Line Interface (Refactored)
-# Uses refactored SqlServerDataImport module and common utilities
+# Non-interactive CLI for scripting and automation
+# For interactive experience, use Import-GUI.ps1 or Launch-Import-GUI.bat
 
 [CmdletBinding(SupportsShouldProcess=$true)]
 param(
+    [Parameter(Mandatory=$true)]
+    [ValidateScript({ Test-Path $_ -PathType Container })]
     [string]$DataFolder,
+
+    [Parameter(Mandatory=$true)]
+    [ValidateNotNullOrEmpty()]
     [string]$ExcelSpecFile,
+
+    [Parameter(Mandatory=$false)]
     [string]$Server,
+
+    [Parameter(Mandatory=$false)]
     [string]$Database,
+
     [string]$Username,
     [string]$Password,
     [string]$SchemaName,
@@ -39,166 +50,20 @@ catch {
 
 #endregion
 
-#region Helper Functions
-
-function Get-DataFolderAndSpec {
-    <#
-    .SYNOPSIS
-    Prompts user for data folder and Excel specification file.
-
-    .DESCRIPTION
-    Interactive prompts with defaults for data folder (current location)
-    and Excel file (ExportSpec.xlsx).
-    #>
-    Write-Host "`n=== Data Folder and Specification File Configuration ===" -ForegroundColor Cyan
-
-    # Prompt for DataFolder
-    $defaultDataFolder = Get-Location
-    Write-Host "Default data folder: '$defaultDataFolder'"
-    $dataFolderInput = Read-Host "Press Enter to use default, or enter a different data folder path"
-
-    if ([string]::IsNullOrWhiteSpace($dataFolderInput)) {
-        $dataFolder = $defaultDataFolder
-    }
-    else {
-        $dataFolder = $dataFolderInput.Trim()
-    }
-
-    # Prompt for ExcelSpecFile
-    $defaultExcelFile = "ExportSpec.xlsx"
-    Write-Host "`nDefault Excel specification file: '$defaultExcelFile'"
-    $excelFileInput = Read-Host "Press Enter to use default, or enter a different Excel file name"
-
-    if ([string]::IsNullOrWhiteSpace($excelFileInput)) {
-        $excelFile = $defaultExcelFile
-    }
-    else {
-        $excelFile = $excelFileInput.Trim()
-    }
-
-    Write-Host "`nSelected configuration:" -ForegroundColor Green
-    Write-Host "  Data Folder: $dataFolder"
-    Write-Host "  Excel File: $excelFile"
-
-    return @{
-        DataFolder = $dataFolder
-        ExcelSpecFile = $excelFile
-    }
-}
-
-function Get-DatabaseConnectionDetails {
-    <#
-    .SYNOPSIS
-    Prompts user for database connection details.
-
-    .DESCRIPTION
-    Collects server, database, and optional authentication details from user.
-    Returns a hashtable with connection parameters.
-
-    .PARAMETER Server
-    SQL Server instance name (optional - will prompt if not provided).
-
-    .PARAMETER Database
-    Database name (optional - will prompt if not provided).
-
-    .PARAMETER Username
-    SQL Server authentication username (optional - uses Windows auth if not provided).
-
-    .PARAMETER Password
-    SQL Server authentication password (optional - will prompt if username provided).
-    #>
-    param(
-        [string]$Server,
-        [string]$Database,
-        [string]$Username,
-        [string]$Password
-    )
-
-    Write-Host "`n=== Database Connection Configuration ===" -ForegroundColor Cyan
-
-    # Prompt for server if not provided
-    if ([string]::IsNullOrWhiteSpace($Server)) {
-        $Server = Read-Host "Enter SQL Server instance (e.g., localhost, server\instance)"
-    }
-    else {
-        Write-Host "Server: $Server (from parameter)"
-    }
-
-    # Prompt for database if not provided
-    if ([string]::IsNullOrWhiteSpace($Database)) {
-        $Database = Read-Host "Enter database name"
-    }
-    else {
-        Write-Host "Database: $Database (from parameter)"
-    }
-
-    # Determine authentication method
-    $useSqlAuth = -not [string]::IsNullOrWhiteSpace($Username)
-
-    if ($useSqlAuth) {
-        # SQL Server Authentication
-        Write-Host "Authentication: SQL Server Authentication (Username: $Username)" -ForegroundColor Green
-
-        # Prompt for password if not provided
-        if ([string]::IsNullOrWhiteSpace($Password)) {
-            Write-Host "Password required for SQL Server Authentication" -ForegroundColor Yellow
-            $securePassword = Read-Host "Enter password for user '$Username'" -AsSecureString
-            $BSTR = [System.Runtime.InteropServices.Marshal]::SecureStringToBSTR($securePassword)
-            $Password = [System.Runtime.InteropServices.Marshal]::PtrToStringAuto($BSTR)
-            [System.Runtime.InteropServices.Marshal]::ZeroFreeBSTR($BSTR)
-        }
-    }
-    else {
-        # Windows Authentication
-        Write-Host "Authentication: Windows Authentication (Integrated Security)" -ForegroundColor Green
-    }
-
-    return @{
-        Server = $Server
-        Database = $Database
-        Username = $Username
-        Password = $Password
-    }
-}
-
-function Get-SchemaName {
-    <#
-    .SYNOPSIS
-    Prompts user for schema name with default option.
-
-    .PARAMETER DefaultSchema
-    Default schema name to suggest (typically the detected prefix).
-    #>
-    param([string]$DefaultSchema)
-
-    Write-Host "`n=== Schema Configuration ===" -ForegroundColor Cyan
-    Write-Host "Default schema name: '$DefaultSchema'"
-    $response = Read-Host "Press Enter to use default, or enter a different schema name"
-
-    if ([string]::IsNullOrWhiteSpace($response)) {
-        return $DefaultSchema
-    }
-    else {
-        return $response.Trim()
-    }
-}
-
-#endregion
-
 #region Main Execution
 
 Write-Host "=== SQL Server Data Import Script (Refactored) ===" -ForegroundColor Cyan
 Write-ImportLog "Starting SQL Server Data Import Script" -Level "INFO"
 
 try {
-    # Get DataFolder and ExcelSpecFile if not provided as parameters
-    if ([string]::IsNullOrWhiteSpace($DataFolder) -or [string]::IsNullOrWhiteSpace($ExcelSpecFile)) {
-        $config = Get-DataFolderAndSpec
-        if ([string]::IsNullOrWhiteSpace($DataFolder)) {
-            $DataFolder = $config.DataFolder
-        }
-        if ([string]::IsNullOrWhiteSpace($ExcelSpecFile)) {
-            $ExcelSpecFile = $config.ExcelSpecFile
+    # Validate Server/Database are provided unless ValidateOnly mode
+    if (-not $ValidateOnly) {
+        if ([string]::IsNullOrWhiteSpace($Server) -or [string]::IsNullOrWhiteSpace($Database)) {
+            Write-Host "ERROR: Server and Database parameters are required unless -ValidateOnly is specified" -ForegroundColor Red
+            Write-Host "`nUsage examples:" -ForegroundColor Yellow
+            Write-Host "  .\Import-CLI.ps1 -DataFolder 'C:\Data' -ExcelSpecFile 'spec.xlsx' -Server 'localhost' -Database 'MyDB'" -ForegroundColor Gray
+            Write-Host "  .\Import-CLI.ps1 -DataFolder 'C:\Data' -ExcelSpecFile 'spec.xlsx' -ValidateOnly" -ForegroundColor Gray
+            exit 1
         }
     }
 
@@ -206,24 +71,29 @@ try {
     Write-Host "Data Folder: $DataFolder"
     Write-Host "Excel Spec File: $ExcelSpecFile"
 
-    # Display validation mode if enabled
+    # Display mode
     if ($ValidateOnly) {
         Write-Host "Mode: VALIDATION ONLY (no database import)" -ForegroundColor Magenta
+    } else {
+        Write-Host "Server: $Server"
+        Write-Host "Database: $Database"
+        if ($Username) {
+            Write-Host "Authentication: SQL Server (User: $Username)"
+        } else {
+            Write-Host "Authentication: Windows Authentication"
+        }
     }
-
-    # Get database connection parameters (still required for module, but not used in ValidateOnly mode)
-    $connectionParams = Get-DatabaseConnectionDetails -Server $Server -Database $Database -Username $Username -Password $Password
 
     # Get prefix from data folder
     $prefix = Get-DataPrefix -FolderPath $DataFolder
 
-    # Get schema name (use parameter if provided, otherwise prompt)
+    # Determine schema name (use parameter or default to prefix)
     if (-not [string]::IsNullOrWhiteSpace($SchemaName)) {
         $schemaName = $SchemaName
-        Write-Host "`nUsing schema name from parameter: $schemaName" -ForegroundColor Green
-    }
-    else {
-        $schemaName = Get-SchemaName -DefaultSchema $prefix
+        Write-Host "Schema: $schemaName (from parameter)" -ForegroundColor Green
+    } else {
+        $schemaName = $prefix
+        Write-Host "Schema: $schemaName (using detected prefix)" -ForegroundColor Green
     }
 
     # Determine table action based on Force parameter
@@ -232,44 +102,47 @@ try {
         Write-Host "`n=== FORCE MODE ENABLED ===" -ForegroundColor Red
         Write-Host "• All existing tables will be DROPPED and RECREATED" -ForegroundColor Red
         Write-Host "• This will DELETE all existing data in the tables" -ForegroundColor Red
-    }
-    else {
+    } else {
         $tableAction = "Ask"
     }
 
-    Write-Host "`n=== IMPORTANT: Optimized Import Assumptions ===" -ForegroundColor Yellow
-    Write-Host "• Every data file MUST have an ImportID as the first field"
-    Write-Host "• Field count MUST match: ImportID + specification fields"
-    Write-Host "• Import will FAIL immediately if field counts don't match"
-    Write-Host "• Only SqlBulkCopy is used - no fallback to INSERT statements"
-    Write-Host "• No file logging for maximum speed"
-    if ($Force) {
-        Write-Host "• FORCE MODE: All tables will be dropped and recreated (existing data will be lost)" -ForegroundColor Red
-    }
-    $confirm = Read-Host "`nDo you want to continue with these assumptions? (Y/N)"
-
-    if ($confirm -notmatch '^[Yy]') {
-        Write-Host "Import cancelled by user." -ForegroundColor Yellow
-        exit 0
+    # Show assumptions only in import mode (not validation)
+    if (-not $ValidateOnly) {
+        Write-Host "`n=== IMPORTANT: Optimized Import Assumptions ===" -ForegroundColor Yellow
+        Write-Host "• Every data file MUST have an ImportID as the first field"
+        Write-Host "• Field count MUST match: ImportID + specification fields"
+        Write-Host "• Import will FAIL immediately if field counts don't match"
+        Write-Host "• Only SqlBulkCopy is used - no fallback to INSERT statements"
+        Write-Host "• No file logging for maximum speed"
+        if ($Force) {
+            Write-Host "• FORCE MODE: All tables will be dropped and recreated (existing data will be lost)" -ForegroundColor Red
+        }
     }
 
     # Execute import using core module
-    Write-Host "`n=== Starting Import Process ===" -ForegroundColor Green
+    Write-Host "`n=== Starting $( if ($ValidateOnly) { 'Validation' } else { 'Import' } ) Process ===" -ForegroundColor Green
 
     try {
         $importParams = @{
             DataFolder = $DataFolder
             ExcelSpecFile = $ExcelSpecFile
-            Server = $connectionParams.Server
-            Database = $connectionParams.Database
             SchemaName = $schemaName
-            TableExistsAction = $tableAction
+        }
+
+        # Add database parameters (use dummy values in ValidateOnly mode)
+        if ($ValidateOnly) {
+            $importParams.Server = if ($Server) { $Server } else { "localhost" }
+            $importParams.Database = if ($Database) { $Database } else { "tempdb" }
+        } else {
+            $importParams.Server = $Server
+            $importParams.Database = $Database
+            $importParams.TableExistsAction = $tableAction
         }
 
         # Add Username/Password if SQL Server authentication is being used
-        if (-not [string]::IsNullOrWhiteSpace($connectionParams.Username)) {
-            $importParams.Username = $connectionParams.Username
-            $importParams.Password = $connectionParams.Password
+        if (-not [string]::IsNullOrWhiteSpace($Username)) {
+            $importParams.Username = $Username
+            $importParams.Password = $Password
         }
 
         # Add PostInstallScripts if provided
