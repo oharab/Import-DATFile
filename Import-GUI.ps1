@@ -33,7 +33,7 @@ function Show-ImportGUI {
     # Create main form
     $form = New-Object System.Windows.Forms.Form
     $form.Text = "SQL Server Data Import Utility (Refactored)"
-    $form.Size = New-Object System.Drawing.Size(620, 760)
+    $form.Size = New-Object System.Drawing.Size(620, 790)
     $form.StartPosition = "CenterScreen"
     $form.FormBorderStyle = "FixedDialog"
     $form.MaximizeBox = $false
@@ -281,7 +281,7 @@ function Show-ImportGUI {
     # Options section
     $optionsGroupBox = New-Object System.Windows.Forms.GroupBox
     $optionsGroupBox.Text = "Import Options"
-    $optionsGroupBox.Size = New-Object System.Drawing.Size(470, 60)
+    $optionsGroupBox.Size = New-Object System.Drawing.Size(470, 85)
     $optionsGroupBox.Location = New-Object System.Drawing.Point(20, 480)
     $form.Controls.Add($optionsGroupBox)
 
@@ -296,7 +296,7 @@ function Show-ImportGUI {
     $tableActionComboBox.Size = New-Object System.Drawing.Size(120, 25)
     $tableActionComboBox.Location = New-Object System.Drawing.Point(110, 23)
     $tableActionComboBox.DropDownStyle = "DropDownList"
-    $tableActionComboBox.Items.AddRange(@("Recreate", "Truncate", "Skip", "Ask"))
+    $tableActionComboBox.Items.AddRange(@("Recreate", "Truncate", "Skip"))
     $tableActionComboBox.SelectedIndex = 0
     $optionsGroupBox.Controls.Add($tableActionComboBox)
 
@@ -306,14 +306,23 @@ function Show-ImportGUI {
 Recreate: Drop and recreate all tables (deletes existing data)
 Truncate: Keep tables, clear all data
 Skip: Skip tables that already exist
-Ask: Prompt for each table (CLI-only, defaults to Recreate in GUI)
 "@)
+
+    # Validate Only checkbox
+    $validateOnlyCheckBox = New-Object System.Windows.Forms.CheckBox
+    $validateOnlyCheckBox.Text = "Validate Only (no DB import)"
+    $validateOnlyCheckBox.Size = New-Object System.Drawing.Size(190, 20)
+    $validateOnlyCheckBox.Location = New-Object System.Drawing.Point(245, 25)
+    $validateOnlyCheckBox.Checked = $false
+    $optionsGroupBox.Controls.Add($validateOnlyCheckBox)
+
+    $tooltip.SetToolTip($validateOnlyCheckBox, "Validate data files and Excel specification without importing to database (no SQL Server connection required)")
 
     # Verbose logging checkbox
     $verboseCheckBox = New-Object System.Windows.Forms.CheckBox
     $verboseCheckBox.Text = "Verbose Logging"
     $verboseCheckBox.Size = New-Object System.Drawing.Size(150, 20)
-    $verboseCheckBox.Location = New-Object System.Drawing.Point(245, 25)
+    $verboseCheckBox.Location = New-Object System.Drawing.Point(10, 50)
     $verboseCheckBox.Checked = $false
     $optionsGroupBox.Controls.Add($verboseCheckBox)
 
@@ -323,12 +332,12 @@ Ask: Prompt for each table (CLI-only, defaults to Recreate in GUI)
     $progressLabel = New-Object System.Windows.Forms.Label
     $progressLabel.Text = "Ready to import..."
     $progressLabel.Size = New-Object System.Drawing.Size(470, 20)
-    $progressLabel.Location = New-Object System.Drawing.Point(20, 550)
+    $progressLabel.Location = New-Object System.Drawing.Point(20, 575)
     $form.Controls.Add($progressLabel)
 
     $progressBar = New-Object System.Windows.Forms.ProgressBar
     $progressBar.Size = New-Object System.Drawing.Size(470, 23)
-    $progressBar.Location = New-Object System.Drawing.Point(20, 575)
+    $progressBar.Location = New-Object System.Drawing.Point(20, 600)
     $progressBar.Style = "Marquee"
     $progressBar.MarqueeAnimationSpeed = 0
     $form.Controls.Add($progressBar)
@@ -338,7 +347,7 @@ Ask: Prompt for each table (CLI-only, defaults to Recreate in GUI)
     $outputTextBox.Multiline = $true
     $outputTextBox.ScrollBars = "Vertical"
     $outputTextBox.Size = New-Object System.Drawing.Size(470, 80)
-    $outputTextBox.Location = New-Object System.Drawing.Point(20, 605)
+    $outputTextBox.Location = New-Object System.Drawing.Point(20, 630)
     $outputTextBox.ReadOnly = $true
     $outputTextBox.BackColor = [System.Drawing.Color]::Black
     $outputTextBox.ForeColor = [System.Drawing.Color]::Lime
@@ -349,7 +358,7 @@ Ask: Prompt for each table (CLI-only, defaults to Recreate in GUI)
     $startButton = New-Object System.Windows.Forms.Button
     $startButton.Text = "Start Import"
     $startButton.Size = New-Object System.Drawing.Size(100, 30)
-    $startButton.Location = New-Object System.Drawing.Point(500, 605)
+    $startButton.Location = New-Object System.Drawing.Point(500, 630)
     $startButton.BackColor = [System.Drawing.Color]::LightGreen
     $startButton.Font = New-Object System.Drawing.Font("Segoe UI", 9, [System.Drawing.FontStyle]::Bold)
     $form.Controls.Add($startButton)
@@ -357,14 +366,14 @@ Ask: Prompt for each table (CLI-only, defaults to Recreate in GUI)
     $cancelButton = New-Object System.Windows.Forms.Button
     $cancelButton.Text = "Cancel"
     $cancelButton.Size = New-Object System.Drawing.Size(100, 30)
-    $cancelButton.Location = New-Object System.Drawing.Point(500, 645)
+    $cancelButton.Location = New-Object System.Drawing.Point(500, 670)
     $cancelButton.Enabled = $false
     $form.Controls.Add($cancelButton)
 
     $exitButton = New-Object System.Windows.Forms.Button
     $exitButton.Text = "Exit"
     $exitButton.Size = New-Object System.Drawing.Size(100, 30)
-    $exitButton.Location = New-Object System.Drawing.Point(500, 685)
+    $exitButton.Location = New-Object System.Drawing.Point(500, 710)
     $exitButton.Add_Click({ $form.Close() })
     $form.Controls.Add($exitButton)
 
@@ -446,7 +455,6 @@ Do you want to continue with these assumptions?
             0 { "Recreate" }
             1 { "Truncate" }
             2 { "Skip" }
-            3 { "Recreate" }  # Ask not supported in GUI runspace, use Recreate
             default { "Recreate" }
         }
 
@@ -459,6 +467,7 @@ Do you want to continue with these assumptions?
         $global:ImportRunspace.SessionStateProxy.SetVariable("SchemaName", $schemaName)
         $global:ImportRunspace.SessionStateProxy.SetVariable("TableAction", $tableAction)
         $global:ImportRunspace.SessionStateProxy.SetVariable("PostInstallScripts", $postInstallTextBox.Text)
+        $global:ImportRunspace.SessionStateProxy.SetVariable("ValidateOnly", $validateOnlyCheckBox.Checked)
         # Set VerbosePreference in the runspace if verbose logging is enabled
         if ($verboseCheckBox.Checked) {
             $global:ImportRunspace.SessionStateProxy.SetVariable("VerbosePreference", "Continue")
@@ -499,6 +508,11 @@ Do you want to continue with these assumptions?
                 # Add Verbose flag if enabled (VerbosePreference is set in runspace)
                 if ($VerbosePreference -eq 'Continue') {
                     $importParams.Verbose = $true
+                }
+
+                # Add ValidateOnly flag if enabled
+                if ($ValidateOnly) {
+                    $importParams.ValidateOnly = $true
                 }
 
                 $result = Invoke-SqlServerDataImport @importParams

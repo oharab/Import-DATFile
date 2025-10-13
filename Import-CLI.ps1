@@ -9,7 +9,9 @@ param(
     [string]$Database,
     [string]$Username,
     [string]$Password,
+    [string]$SchemaName,
     [switch]$Force,
+    [switch]$ValidateOnly,
     [string]$PostInstallScripts
 )
 
@@ -204,14 +206,25 @@ try {
     Write-Host "Data Folder: $DataFolder"
     Write-Host "Excel Spec File: $ExcelSpecFile"
 
-    # Get database connection parameters
+    # Display validation mode if enabled
+    if ($ValidateOnly) {
+        Write-Host "Mode: VALIDATION ONLY (no database import)" -ForegroundColor Magenta
+    }
+
+    # Get database connection parameters (still required for module, but not used in ValidateOnly mode)
     $connectionParams = Get-DatabaseConnectionDetails -Server $Server -Database $Database -Username $Username -Password $Password
 
     # Get prefix from data folder
     $prefix = Get-DataPrefix -FolderPath $DataFolder
 
-    # Get schema name
-    $schemaName = Get-SchemaName -DefaultSchema $prefix
+    # Get schema name (use parameter if provided, otherwise prompt)
+    if (-not [string]::IsNullOrWhiteSpace($SchemaName)) {
+        $schemaName = $SchemaName
+        Write-Host "`nUsing schema name from parameter: $schemaName" -ForegroundColor Green
+    }
+    else {
+        $schemaName = Get-SchemaName -DefaultSchema $prefix
+    }
 
     # Determine table action based on Force parameter
     if ($Force) {
@@ -275,6 +288,12 @@ try {
         if ($PSCmdlet.MyInvocation.BoundParameters['WhatIf']) {
             $importParams.WhatIf = $true
             Write-Host "WhatIf mode enabled - no database changes will be made" -ForegroundColor Cyan
+        }
+
+        # Pass through ValidateOnly parameter if specified
+        if ($ValidateOnly) {
+            $importParams.ValidateOnly = $true
+            Write-Host "ValidateOnly mode enabled - data will be validated without database import" -ForegroundColor Cyan
         }
 
         $summary = Invoke-SqlServerDataImport @importParams

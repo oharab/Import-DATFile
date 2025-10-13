@@ -67,8 +67,9 @@ BeforeAll {
         $datPath = Join-Path $Path "$Prefix$TableName.dat"
         $records = @()
 
+        # All records use the same ImportID (consistent pattern)
         for ($i = 1; $i -le $RecordCount; $i++) {
-            $records += "EMP$($i.ToString('000'))|FirstName$i|LastName$i|2024-01-$($i.ToString('00')) 10:00:00"
+            $records += "$Prefix|FirstName$i|LastName$i|2024-01-$($i.ToString('00')) 10:00:00"
         }
 
         Set-Content -Path $datPath -Value $records
@@ -175,10 +176,15 @@ Describe "Invoke-SqlServerDataImport - Integration Tests" {
 
             # Assert - Check first row data
             $firstRow = $script:CapturedDataTable.Rows[0]
-            $firstRow["ImportID"] | Should -Be "EMP001"
+            $firstRow["ImportID"] | Should -Be "TEST_"
             $firstRow["FirstName"] | Should -Be "FirstName1"
             $firstRow["LastName"] | Should -Be "LastName1"
             $firstRow["HireDate"] | Should -BeOfType [DateTime]
+
+            # Verify all rows have the same ImportID (consistent pattern)
+            $script:CapturedDataTable.Rows | ForEach-Object {
+                $_["ImportID"] | Should -Be "TEST_"
+            }
         }
 
         It "Should handle TableExistsAction=Skip" {

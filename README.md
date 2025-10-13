@@ -8,7 +8,8 @@ A powerful PowerShell script that imports pipe-separated `.dat` files into SQL S
 1. **Double-click** `Launch-Import-GUI.bat`
 2. **Use the friendly interface** to select your data folder and Excel file
 3. **Configure database connection** in the GUI
-4. **Click "Start Import"** and watch the progress!
+4. **Optional:** Check **"Validate Only"** to test data without importing
+5. **Click "Start Import"** and watch the progress!
 
 ### ⌨️ Command Line Method (For advanced users)
 1. **Install Prerequisites**
@@ -32,6 +33,12 @@ A powerful PowerShell script that imports pipe-separated `.dat` files into SQL S
 
    # SQL Authentication
    .\Import-CLI.ps1 -DataFolder "C:\Data" -Server "localhost" -Database "MyDB" -Username "sa" -Password "YourPassword"
+
+   # Validate data without database import (no SQL Server connection required)
+   .\Import-CLI.ps1 -DataFolder "C:\Data" -ExcelSpecFile "ExportSpec.xlsx" -Server "localhost" -Database "MyDB" -ValidateOnly
+
+   # Specify schema name without prompts
+   .\Import-CLI.ps1 -DataFolder "C:\Data" -Server "localhost" -Database "MyDB" -SchemaName "MySchema"
 
    # Force mode (drops/recreates all tables - DELETES existing data!)
    .\Import-CLI.ps1 -DataFolder "C:\Data" -Server "localhost" -Database "MyDB" -Force
@@ -66,6 +73,7 @@ Your Excel file should contain these columns:
 ## ✨ Key Features
 
 - 🔍 **Automatic Prefix Detection** - Finds your data prefix from Employee.dat file
+- ✅ **Validation Mode** - Validate data files and Excel specs without SQL Server connection
 - 🎛️ **Interactive Configuration** - Prompts for all necessary settings
 - ⚡ **High-Performance Import** - Uses SqlBulkCopy for lightning-fast imports
 - 🛡️ **Smart Field Handling** - Automatically handles extra import name fields
@@ -115,8 +123,12 @@ The project uses a **Private/Public module structure** following PowerShell best
 1. **Double-click** `Launch-Import-GUI.bat`
 2. **Select** your data folder using the Browse button
 3. **Choose** your Excel specification file
-4. **Check options** like verbose logging if needed
-5. **Click "Start Import"** and monitor progress in real-time
+4. **Configure options**:
+   - **Validate Only** - Check this to validate data files without importing (no SQL Server required)
+   - **Verbose Logging** - Show detailed operational information
+   - **Table exists action** - Choose Recreate, Truncate, or Skip
+5. **Click "Start Import"** (or "Start Validation" if Validate Only is checked)
+6. **Monitor progress** in real-time via the output window
 
 ![GUI Interface Features](gui-preview.png)
 *User-friendly interface with file browsers, progress tracking, and real-time output*
@@ -133,9 +145,15 @@ The script will prompt you for:
 - Database connection details
 - Schema name (defaults to detected prefix)
 
-#### With Parameters
+#### Non-Interactive with Parameters
 ```powershell
-.\Import-CLI.ps1 -DataFolder "C:\MyData" -ExcelSpecFile "MySpecs.xlsx"
+# Fully automated (no prompts)
+.\Import-CLI.ps1 -DataFolder "C:\MyData" -ExcelSpecFile "MySpecs.xlsx" -Server "localhost" -Database "MyDB" -SchemaName "dbo"
+```
+
+#### Validation Only (No Database Required)
+```powershell
+.\Import-CLI.ps1 -DataFolder "C:\MyData" -ExcelSpecFile "MySpecs.xlsx" -Server "localhost" -Database "MyDB" -ValidateOnly
 ```
 
 #### With Verbose Logging
@@ -165,6 +183,8 @@ The script automatically maps Excel types to SQL Server types:
 - `-ExcelSpecFile`: Specification file (default: "ExportSpec.xlsx")
 - `-Server`, `-Database`: SQL Server connection details
 - `-Username`, `-Password`: SQL auth (omit for Windows auth)
+- `-SchemaName`: Custom schema name (default: detected prefix)
+- `-ValidateOnly`: Validate data files without importing (no SQL Server connection required)
 - `-Force`: Auto-recreate tables (⚠️ DELETES existing data)
 - `-PostInstallScripts`: Path to .sql files to execute after import
 - `-Verbose`: Detailed logging for troubleshooting
@@ -175,12 +195,19 @@ The script automatically maps Excel types to SQL Server types:
 - **SQL Server Authentication** - Provide `-Username` and optionally `-Password`
 
 ### Table Conflict Resolution
-When tables already exist, choose from:
+When tables already exist, you have these options:
+
+**CLI (Interactive Mode):**
 1. **Cancel** - Stop the entire import
 2. **Skip** - Skip this table only
 3. **Truncate** - Clear existing data
 4. **Recreate** - Drop and recreate table
-5. **Use `-Force`** - Automatically recreate ALL tables (⚠️ DELETES data!)
+
+**GUI:**
+- Choose **Recreate**, **Truncate**, or **Skip** from dropdown before starting
+
+**Both CLI & GUI:**
+- Use `-Force` parameter to automatically recreate ALL tables (⚠️ DELETES data!)
 
 ### Post-Install Scripts
 Execute custom SQL after import completes (views, procedures, indexes, etc.):
@@ -208,6 +235,39 @@ For optimal performance, ensure data follows these formats:
 - **Integers**: Can include decimal notation (e.g., `123.0` converts to 123)
 - **Boolean**: `1/0`, `TRUE/FALSE`, `YES/NO`, `Y/N`, `T/F` (case insensitive)
 - **NULL**: Empty string, whitespace, `NULL`, `NA`, `N/A` (case insensitive)
+
+## 🔍 Validation Mode
+
+Before importing to a live database, you can validate your data files and Excel specification without requiring a SQL Server connection.
+
+### When to Use Validation Mode
+- ✅ **Pre-flight check** - Verify data structure before production import
+- ✅ **No SQL Server access** - Test data files on machines without database access
+- ✅ **Excel spec verification** - Confirm table and field specifications are correct
+- ✅ **Data quality checks** - Identify type conversion issues early
+- ✅ **Field count validation** - Ensure ImportID and all expected fields are present
+
+### Using Validation Mode
+
+**CLI:**
+```powershell
+.\Import-CLI.ps1 -DataFolder "C:\Data" -ExcelSpecFile "ExportSpec.xlsx" -Server "localhost" -Database "MyDB" -ValidateOnly
+```
+
+**GUI:**
+1. Check the **"Validate Only (no DB import)"** checkbox
+2. Click **"Start Import"** to run validation
+3. Review validation results in the output window
+
+### What Gets Validated
+- ✅ Excel specification structure (required columns, data types)
+- ✅ Data file existence and format
+- ✅ Field count matching (ImportID + specification fields)
+- ✅ Data type conversions (dates, numbers, booleans)
+- ✅ Multi-line field handling
+- ❌ **NOT validated**: Database connectivity, table existence, SQL permissions
+
+**Note:** Server and Database parameters are still required but no actual connection is made during validation.
 
 ## 📊 Import Summary
 
@@ -270,6 +330,11 @@ Total Rows Imported: 1,468
 
 ### 🔧 Getting Help
 
+**Validate First:** Always start by running in validation mode to catch data issues:
+```powershell
+.\Import-CLI.ps1 -DataFolder "C:\Data" -ExcelSpecFile "Spec.xlsx" -Server "localhost" -Database "MyDB" -ValidateOnly
+```
+
 **GUI Method:** Check the output window for detailed error messages
 
 **Command Line Method:** Run with verbose logging for detailed diagnostics:
@@ -280,16 +345,22 @@ Total Rows Imported: 1,468
 **Module Method:** For custom scripts, import the module directly:
 ```powershell
 Import-Module .\SqlServerDataImport.psm1
-Invoke-SqlServerDataImport -DataFolder "C:\Data" -ExcelSpecFile "Spec.xlsx" -ConnectionString "Server=localhost;Database=MyDB;Integrated Security=True;"
+Invoke-SqlServerDataImport -DataFolder "C:\Data" -ExcelSpecFile "Spec.xlsx" -Server "localhost" -Database "MyDB" -SchemaName "dbo" -ValidateOnly
 ```
 
 ## 📄 Requirements
 
+### For Data Import:
 - **PowerShell 5.1** or later
 - **SQL Server** (any supported version)
 - **SqlServer PowerShell Module**
 - **ImportExcel PowerShell Module**
 - **Network access** to target SQL Server instance
+
+### For Validation Only Mode:
+- **PowerShell 5.1** or later
+- **ImportExcel PowerShell Module**
+- ❌ **SQL Server NOT required** (validation runs without database connection)
 
 ## 🔒 Security Notes
 

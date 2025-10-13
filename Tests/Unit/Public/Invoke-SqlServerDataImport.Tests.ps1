@@ -21,7 +21,7 @@ BeforeAll {
 
         # Create Employee.dat file (for prefix detection)
         $employeeDat = Join-Path $dataFolder "$($Prefix)Employee.dat"
-        "EMP001|John|Doe" | Set-Content $employeeDat
+        "$($Prefix)|John|Doe" | Set-Content $employeeDat
 
         return @{
             DataFolder = $dataFolder

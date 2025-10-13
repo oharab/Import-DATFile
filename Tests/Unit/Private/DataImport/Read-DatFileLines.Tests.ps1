@@ -320,7 +320,7 @@ Describe "Read-DatFileLines" {
 
             # Assert
             $result.Count | Should -BeGreaterThan 0
-            $result[0].Values[0] | Should -Be "EMP001"
+            $result[0].Values[0] | Should -Be "Test"
             $result[0].Values[1] | Should -Be "John"
         }
 
@@ -333,8 +333,12 @@ Describe "Read-DatFileLines" {
 
             # Assert
             $result.Count | Should -Be 3
+            # All records have consistent ImportID
+            $result[0].Values[0] | Should -Be "Test"
+            $result[1].Values[0] | Should -Be "Test"
+            $result[2].Values[0] | Should -Be "Test"
             # Second record spans multiple lines
-            $result[1].Values[0] | Should -Be "DEPT002"
+            $result[1].Values[1] | Should -Be "Marketing"
             $result[1].Values[3] | Should -Match "multi-line"
         }
     }
