@@ -30,7 +30,7 @@ function Get-SqlDataTypeMapping {
         [string]$Precision
     )
 
-    # SQL Server type mappings: Excel/spec types → SQL Server types
+    # SQL Server type mappings: Excel/spec types -> SQL Server types
     # Order matters - patterns evaluated in order, first match wins
     $sqlTypeMappings = @(
         [PSCustomObject]@{ Pattern = '^MONEY$';        SqlType = 'MONEY';    UsesPrecision = $false; DefaultPrecision = $null }

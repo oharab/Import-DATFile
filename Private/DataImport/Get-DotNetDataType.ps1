@@ -25,7 +25,7 @@ function Get-DotNetDataType {
         [string]$SqlType
     )
 
-    # Type mappings: SQL Server types → .NET types
+    # Type mappings: SQL Server types -> .NET types
     $typeMappings = @{
         'DATE'       = [System.DateTime]
         'DATETIME'   = [System.DateTime]
@@ -46,7 +46,7 @@ function Get-DotNetDataType {
         'BOOLEAN'    = [System.Boolean]
     }
 
-    # Remove precision/scale if present (e.g., "VARCHAR(100)" → "VARCHAR")
+    # Remove precision/scale if present (e.g., "VARCHAR(100)" -> "VARCHAR")
     $baseType = ($SqlType -replace '\(.*\)', '').ToUpper()
 
     # Lookup type mapping (single lookup)

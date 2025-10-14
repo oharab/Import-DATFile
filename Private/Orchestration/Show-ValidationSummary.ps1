@@ -46,7 +46,7 @@ function Show-ValidationSummary {
     if ($validTables.Count -gt 0) {
         Write-Host "`n[OK] VALID TABLES ($($validTables.Count)):" -ForegroundColor Green
         foreach ($result in $validTables) {
-            Write-Host "  • $($result.TableName): $($result.RowCount) rows" -ForegroundColor Green
+            Write-Host "  - $($result.TableName): $($result.RowCount) rows" -ForegroundColor Green
 
             # Show warnings if any
             if ($result.Warnings.Count -gt 0) {
@@ -61,7 +61,7 @@ function Show-ValidationSummary {
     if ($invalidTables.Count -gt 0) {
         Write-Host "`n[FAILED] INVALID TABLES ($($invalidTables.Count)):" -ForegroundColor Red
         foreach ($result in $invalidTables) {
-            Write-Host "  • $($result.TableName): VALIDATION FAILED" -ForegroundColor Red
+            Write-Host "  - $($result.TableName): VALIDATION FAILED" -ForegroundColor Red
 
             # Show all errors
             foreach ($error in $result.Errors) {

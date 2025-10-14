@@ -57,13 +57,13 @@ function Get-DatabaseErrorGuidance {
             $guidance += "  4. Authentication:"
 
             if ($Context.Username) {
-                $guidance += "     • SQL Auth must be enabled on server"
-                $guidance += "     • Username/password must be correct"
-                $guidance += "     • User must have access to database"
+                $guidance += "     - SQL Auth must be enabled on server"
+                $guidance += "     - Username/password must be correct"
+                $guidance += "     - User must have access to database"
             }
             else {
-                $guidance += "     • Windows account must have SQL Server access"
-                $guidance += "     • Run PowerShell as correct Windows user"
+                $guidance += "     - Windows account must have SQL Server access"
+                $guidance += "     - Run PowerShell as correct Windows user"
             }
 
             $guidance += "  5. Database existence - Verify database '$database' exists"
@@ -79,10 +79,10 @@ function Get-DatabaseErrorGuidance {
             $guidance += ""
             $guidance += "Common issues to check:"
             $guidance += "  1. Permissions - User needs CREATE SCHEMA permission"
-            $guidance += "     • Grant with: GRANT CREATE SCHEMA TO [username]"
+            $guidance += "     - Grant with: GRANT CREATE SCHEMA TO [username]"
             $guidance += "  2. Schema name - Verify name is valid (alphanumeric and underscore only)"
             $guidance += "  3. Database role - User may need db_ddladmin role"
-            $guidance += "     • Grant with: ALTER ROLE db_ddladmin ADD MEMBER [username]"
+            $guidance += "     - Grant with: ALTER ROLE db_ddladmin ADD MEMBER [username]"
             $guidance += ""
             $guidance += "Error details: $ErrorMessage"
         }
@@ -96,7 +96,7 @@ function Get-DatabaseErrorGuidance {
             $guidance += ""
             $guidance += "Common issues to check:"
             $guidance += "  1. Permissions - User needs CREATE TABLE permission in schema"
-            $guidance += "     • Grant with: GRANT CREATE TABLE TO [username]"
+            $guidance += "     - Grant with: GRANT CREATE TABLE TO [username]"
             $guidance += "  2. Schema existence - Verify schema [$schemaName] exists"
             $guidance += "  3. Table name - Verify name doesn't conflict with existing object"
             $guidance += "  4. Data types - Check all column data types are valid"
@@ -120,10 +120,10 @@ function Get-DatabaseErrorGuidance {
             $guidance += ""
             $guidance += "Common issues to check:"
             $guidance += "  1. Foreign key constraints - TRUNCATE fails if table is referenced"
-            $guidance += "     • Option A: Drop foreign keys temporarily"
-            $guidance += "     • Option B: Use DELETE instead of TRUNCATE"
+            $guidance += "     - Option A: Drop foreign keys temporarily"
+            $guidance += "     - Option B: Use DELETE instead of TRUNCATE"
             $guidance += "  2. Permissions - User needs ALTER permission on table"
-            $guidance += "     • Grant with: GRANT ALTER ON [$schemaName].[$tableName] TO [username]"
+            $guidance += "     - Grant with: GRANT ALTER ON [$schemaName].[$tableName] TO [username]"
             $guidance += "  3. Table existence - Verify table exists"
             $guidance += "  4. Active transactions - Ensure no locks on table"
             $guidance += ""
@@ -141,7 +141,7 @@ function Get-DatabaseErrorGuidance {
             $guidance += "Common issues to check:"
             $guidance += "  1. Foreign key constraints - Drop referencing tables/constraints first"
             $guidance += "  2. Permissions - User needs ALTER permission on schema"
-            $guidance += "     • Grant with: GRANT ALTER ON SCHEMA::[$schemaName] TO [username]"
+            $guidance += "     - Grant with: GRANT ALTER ON SCHEMA::[$schemaName] TO [username]"
             $guidance += "  3. Dependent objects - Views, stored procedures may reference table"
             $guidance += "  4. Active transactions - Ensure no locks on table"
             $guidance += ""
