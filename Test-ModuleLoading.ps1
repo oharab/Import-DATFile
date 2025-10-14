@@ -38,10 +38,12 @@ $exportedFunctions = Get-Command -Module SqlServerDataImport
 Write-Host "Count: $($exportedFunctions.Count)" -ForegroundColor White
 $exportedFunctions | ForEach-Object { Write-Host "  - $($_.Name)" -ForegroundColor Green }
 
-# Check if specific functions are available
-Write-Host "`n--- Checking Specific Functions ---" -ForegroundColor Cyan
+# Note: Private functions are NOT exported, so they won't show up in Get-Command
+# This is expected behavior. Only Public functions are exported.
+Write-Host "`n--- Checking Private Functions (in module scope) ---" -ForegroundColor Cyan
+Write-Host "NOTE: Private functions are loaded but NOT exported (this is correct)" -ForegroundColor Gray
 
-$functionsToCheck = @(
+$privateFunctionsToCheck = @(
     'Write-ImportLog',
     'Get-DataPrefix',
     'Get-TableSpecifications',
@@ -51,13 +53,28 @@ $functionsToCheck = @(
     'Invoke-TableImportProcess'
 )
 
-foreach ($funcName in $functionsToCheck) {
+Write-Host "`nPrivate functions (expected to be NOT globally available):" -ForegroundColor Cyan
+foreach ($funcName in $privateFunctionsToCheck) {
     $func = Get-Command $funcName -ErrorAction SilentlyContinue
     if ($func) {
-        Write-Host "  [OK] $funcName" -ForegroundColor Green
+        Write-Host "  [UNEXPECTED] $funcName - should not be exported!" -ForegroundColor Yellow
     }
     else {
-        Write-Host "  [MISSING] $funcName" -ForegroundColor Red
+        Write-Host "  [OK] $funcName (not exported - correct)" -ForegroundColor Green
+    }
+}
+
+# Check if Public functions ARE available
+Write-Host "`n--- Checking Public Functions (should be exported) ---" -ForegroundColor Cyan
+$publicFunctions = @('Invoke-SqlServerDataImport')
+
+foreach ($funcName in $publicFunctions) {
+    $func = Get-Command $funcName -ErrorAction SilentlyContinue
+    if ($func) {
+        Write-Host "  [OK] $funcName (exported - correct)" -ForegroundColor Green
+    }
+    else {
+        Write-Host "  [ERROR] $funcName - should be exported!" -ForegroundColor Red
     }
 }
 

@@ -53,7 +53,6 @@ catch {
 #region Main Execution
 
 Write-Host "=== SQL Server Data Import Script (Refactored) ===" -ForegroundColor Cyan
-Write-ImportLog "Starting SQL Server Data Import Script" -Level "INFO"
 
 try {
     # Validate Server/Database are provided unless ValidateOnly mode
@@ -84,24 +83,12 @@ try {
         }
     }
 
-    # Get prefix from data folder
-    $prefix = Get-DataPrefix -FolderPath $DataFolder
-
-    # Determine schema name (use parameter or default to prefix)
-    if (-not [string]::IsNullOrWhiteSpace($SchemaName)) {
-        $schemaName = $SchemaName
-        Write-Host "Schema: $schemaName (from parameter)" -ForegroundColor Green
-    } else {
-        $schemaName = $prefix
-        Write-Host "Schema: $schemaName (using detected prefix)" -ForegroundColor Green
-    }
-
     # Determine table action based on Force parameter
     if ($Force) {
         $tableAction = "Recreate"
         Write-Host "`n=== FORCE MODE ENABLED ===" -ForegroundColor Red
-        Write-Host "• All existing tables will be DROPPED and RECREATED" -ForegroundColor Red
-        Write-Host "• This will DELETE all existing data in the tables" -ForegroundColor Red
+        Write-Host "- All existing tables will be DROPPED and RECREATED" -ForegroundColor Red
+        Write-Host "- This will DELETE all existing data in the tables" -ForegroundColor Red
     } else {
         $tableAction = "Ask"
     }
@@ -109,13 +96,13 @@ try {
     # Show assumptions only in import mode (not validation)
     if (-not $ValidateOnly) {
         Write-Host "`n=== IMPORTANT: Optimized Import Assumptions ===" -ForegroundColor Yellow
-        Write-Host "• Every data file MUST have an ImportID as the first field"
-        Write-Host "• Field count MUST match: ImportID + specification fields"
-        Write-Host "• Import will FAIL immediately if field counts don't match"
-        Write-Host "• Only SqlBulkCopy is used - no fallback to INSERT statements"
-        Write-Host "• No file logging for maximum speed"
+        Write-Host "- Every data file MUST have an ImportID as the first field"
+        Write-Host "- Field count MUST match: ImportID + specification fields"
+        Write-Host "- Import will FAIL immediately if field counts don't match"
+        Write-Host "- Only SqlBulkCopy is used - no fallback to INSERT statements"
+        Write-Host "- No file logging for maximum speed"
         if ($Force) {
-            Write-Host "• FORCE MODE: All tables will be dropped and recreated (existing data will be lost)" -ForegroundColor Red
+            Write-Host "- FORCE MODE: All tables will be dropped and recreated (existing data will be lost)" -ForegroundColor Red
         }
     }
 
@@ -126,7 +113,11 @@ try {
         $importParams = @{
             DataFolder = $DataFolder
             ExcelSpecFile = $ExcelSpecFile
-            SchemaName = $schemaName
+        }
+
+        # Add SchemaName if provided
+        if (-not [string]::IsNullOrWhiteSpace($SchemaName)) {
+            $importParams.SchemaName = $SchemaName
         }
 
         # Add database parameters (use dummy values in ValidateOnly mode)
@@ -175,13 +166,12 @@ try {
         # Summary is displayed by the module itself via Show-ImportSummary
     }
     catch {
-        Write-ImportLog "Import failed: $($_.Exception.Message)" -Level "ERROR"
         Write-Host "Import failed: $($_.Exception.Message)" -ForegroundColor Red
         Write-Host "`nThis could be due to:" -ForegroundColor Yellow
-        Write-Host "• Field count mismatch (check that first field is ImportID)" -ForegroundColor Yellow
-        Write-Host "• Data type conversion issues" -ForegroundColor Yellow
-        Write-Host "• SqlBulkCopy specific errors" -ForegroundColor Yellow
-        Write-Host "• Missing or invalid data files" -ForegroundColor Yellow
+        Write-Host "- Field count mismatch (check that first field is ImportID)" -ForegroundColor Yellow
+        Write-Host "- Data type conversion issues" -ForegroundColor Yellow
+        Write-Host "- SqlBulkCopy specific errors" -ForegroundColor Yellow
+        Write-Host "- Missing or invalid data files" -ForegroundColor Yellow
         exit 1
     }
 }
