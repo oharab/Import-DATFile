@@ -44,14 +44,14 @@ function Show-ValidationSummary {
 
     # Display valid tables
     if ($validTables.Count -gt 0) {
-        Write-Host "`n✓ VALID TABLES ($($validTables.Count)):" -ForegroundColor Green
+        Write-Host "`n[OK] VALID TABLES ($($validTables.Count)):" -ForegroundColor Green
         foreach ($result in $validTables) {
             Write-Host "  • $($result.TableName): $($result.RowCount) rows" -ForegroundColor Green
 
             # Show warnings if any
             if ($result.Warnings.Count -gt 0) {
                 foreach ($warning in $result.Warnings) {
-                    Write-Host "    ⚠ $warning" -ForegroundColor Yellow
+                    Write-Host "    [WARNING] $warning" -ForegroundColor Yellow
                 }
             }
         }
@@ -59,13 +59,13 @@ function Show-ValidationSummary {
 
     # Display invalid tables
     if ($invalidTables.Count -gt 0) {
-        Write-Host "`n✗ INVALID TABLES ($($invalidTables.Count)):" -ForegroundColor Red
+        Write-Host "`n[FAILED] INVALID TABLES ($($invalidTables.Count)):" -ForegroundColor Red
         foreach ($result in $invalidTables) {
             Write-Host "  • $($result.TableName): VALIDATION FAILED" -ForegroundColor Red
 
             # Show all errors
             foreach ($error in $result.Errors) {
-                Write-Host "    ✗ $error" -ForegroundColor Red
+                Write-Host "    [ERROR] $error" -ForegroundColor Red
             }
         }
     }
@@ -80,11 +80,11 @@ function Show-ValidationSummary {
 
     # Overall result
     if ($invalidTables.Count -eq 0) {
-        Write-Host "`n✓ ALL VALIDATIONS PASSED" -ForegroundColor Green
+        Write-Host "`n[OK] ALL VALIDATIONS PASSED" -ForegroundColor Green
         Write-Host "Your data is ready to import!" -ForegroundColor Green
     }
     else {
-        Write-Host "`n✗ VALIDATION FAILED" -ForegroundColor Red
+        Write-Host "`n[FAILED] VALIDATION FAILED" -ForegroundColor Red
         Write-Host "Please fix the errors above before importing." -ForegroundColor Red
     }
 }

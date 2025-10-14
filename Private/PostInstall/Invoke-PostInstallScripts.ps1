@@ -89,12 +89,12 @@ function Invoke-PostInstallScripts {
             # Execute the SQL script
             Invoke-Sqlcmd -ConnectionString $ConnectionString -Query $sql -QueryTimeout $queryTimeoutSeconds
 
-            Write-Host "  ✓ Successfully executed $($sqlFile.Name)" -ForegroundColor Green
+            Write-Host "  [OK] Successfully executed $($sqlFile.Name)" -ForegroundColor Green
             Write-Debug "Post-install: Successfully executed $($sqlFile.Name)"
             $successCount++
         }
         catch {
-            Write-Host "  ✗ Failed to execute $($sqlFile.Name): $($_.Exception.Message)" -ForegroundColor Red
+            Write-Host "  [FAILED] Failed to execute $($sqlFile.Name): $($_.Exception.Message)" -ForegroundColor Red
             Write-Error "Post-install: Failed to execute $($sqlFile.Name): $($_.Exception.Message)"
             $errorCount++
         }

@@ -59,7 +59,7 @@ function Show-ImportGUI {
 
     # Warning section
     $warningGroupBox = New-Object System.Windows.Forms.GroupBox
-    $warningGroupBox.Text = "⚠️ IMPORTANT: Optimized Import Assumptions"
+    $warningGroupBox.Text = "[!] IMPORTANT: Optimized Import Assumptions"
     $warningGroupBox.Size = New-Object System.Drawing.Size(580, 95)
     $warningGroupBox.Location = New-Object System.Drawing.Point(10, 75)
     $warningGroupBox.ForeColor = [System.Drawing.Color]::DarkRed

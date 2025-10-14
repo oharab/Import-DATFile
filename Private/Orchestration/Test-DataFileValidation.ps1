@@ -77,12 +77,12 @@ function Test-DataFileValidation {
         Write-Verbose "Validating type conversions for $rowCount records"
         try {
             Add-DataTableRows -DataTable $dataTable -Records $records -Fields $Fields -TableName $TableName
-            Write-Host "  ✓ Successfully validated $rowCount rows" -ForegroundColor Green
+            Write-Host "  [OK] Successfully validated $rowCount rows" -ForegroundColor Green
         }
         catch {
             # Capture type conversion errors
             $validationErrors += $_.Exception.Message
-            Write-Host "  ✗ Validation failed: $($_.Exception.Message)" -ForegroundColor Red
+            Write-Host "  [FAILED] Validation failed: $($_.Exception.Message)" -ForegroundColor Red
         }
 
         # Return validation result
@@ -97,7 +97,7 @@ function Test-DataFileValidation {
     catch {
         # Capture parsing errors
         $validationErrors += "Failed to parse file: $($_.Exception.Message)"
-        Write-Host "  ✗ Parse error: $($_.Exception.Message)" -ForegroundColor Red
+        Write-Host "  [FAILED] Parse error: $($_.Exception.Message)" -ForegroundColor Red
 
         return @{
             TableName = $TableName
