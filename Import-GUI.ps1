@@ -67,12 +67,12 @@ function Show-ImportGUI {
 
     $warningLabel = New-Object System.Windows.Forms.Label
     $warningLabel.Text = @"
-• Every data file MUST have ImportID as the first field
-• Field count MUST match exactly: ImportID + specification fields
-• Multi-line fields with embedded newlines are fully supported
-• Only SqlBulkCopy is used - no fallback to INSERT statements
-• Dates: yyyy-MM-dd format | Decimals: period separator | NULL: case-insensitive
-• No file logging for maximum speed - console output only
+- Every data file MUST have ImportID as the first field
+- Field count MUST match exactly: ImportID + specification fields
+- Multi-line fields with embedded newlines are fully supported
+- Only SqlBulkCopy is used - no fallback to INSERT statements
+- Dates: yyyy-MM-dd format | Decimals: period separator | NULL: case-insensitive
+- No file logging for maximum speed - console output only
 "@
     $warningLabel.Size = New-Object System.Drawing.Size(560, 70)
     $warningLabel.Location = New-Object System.Drawing.Point(10, 15)
@@ -434,22 +434,22 @@ Skip: Skip tables that already exist
         if ($validateOnlyCheckBox.Checked) {
             $confirmResult = [System.Windows.Forms.MessageBox]::Show(@"
 VALIDATION MODE:
-• Excel specification will be checked for errors
-• Data files will be validated for format issues
-• Field counts and data types will be verified
-• NO data will be imported to any database
-• NO database connection will be made
+- Excel specification will be checked for errors
+- Data files will be validated for format issues
+- Field counts and data types will be verified
+- NO data will be imported to any database
+- NO database connection will be made
 
 Proceed with validation?
 "@, "Confirm Validation", "YesNo", "Question")
         } else {
             $confirmResult = [System.Windows.Forms.MessageBox]::Show(@"
 OPTIMIZED IMPORT ASSUMPTIONS:
-• Every data file MUST have ImportID as first field
-• Field count MUST match exactly (ImportID + spec fields)
-• Multi-line fields with embedded newlines are fully supported
-• Only SqlBulkCopy (no INSERT fallback)
-• No file logging for maximum speed
+- Every data file MUST have ImportID as first field
+- Field count MUST match exactly (ImportID + spec fields)
+- Multi-line fields with embedded newlines are fully supported
+- Only SqlBulkCopy (no INSERT fallback)
+- No file logging for maximum speed
 
 Do you want to continue with these assumptions?
 "@, "Confirm Optimized Import", "YesNo", "Question")
@@ -513,8 +513,12 @@ Do you want to continue with these assumptions?
                     ExcelSpecFile = $ExcelSpecFile
                     Server = $Server
                     Database = $Database
-                    SchemaName = $SchemaName
                     TableExistsAction = $TableAction
+                }
+
+                # Add SchemaName if provided (otherwise module will auto-detect from prefix)
+                if (-not [string]::IsNullOrWhiteSpace($SchemaName)) {
+                    $importParams.SchemaName = $SchemaName
                 }
 
                 # Add Username/Password if provided (SQL Server authentication)
