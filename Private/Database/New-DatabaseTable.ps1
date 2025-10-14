@@ -46,7 +46,7 @@ function New-DatabaseTable {
     $fieldDefinitions += "    [ImportID] VARCHAR(255)"
 
     foreach ($field in $Fields) {
-        $sqlType = Get-SqlDataTypeMapping -ExcelType $field."Data type" -Precision $field.Precision
+        $sqlType = Get-SqlDataTypeMapping -ExcelType $field."Data type" -Precision $field.Precision -Scale $field.Scale
         $fieldDef = "    [$($field.'Column name')] $sqlType"
         $fieldDefinitions += $fieldDef
     }
