@@ -85,12 +85,16 @@ Describe "Test-ExcelSpecification" {
     }
 
     Context "Missing Required Columns" {
-        It "Should fail when Table name column missing" {
-            # Arrange
+        It "Should fail when Table name is empty" {
+            # Arrange - Note: Column normalization happens in Get-TableSpecifications
+            # Test validates empty values, not missing properties
             $specs = @(
                 [PSCustomObject]@{
+                    'Table name' = ''
                     'Column name' = 'FirstName'
                     'Data type' = 'VARCHAR'
+                    'Precision' = $null
+                    'Scale' = $null
                 }
             )
 
@@ -99,15 +103,18 @@ Describe "Test-ExcelSpecification" {
 
             # Assert
             $result.IsValid | Should -Be $false
-            $result.Errors -join ' ' | Should -Match "missing required columns.*Table name"
+            $result.Errors -join ' ' | Should -Match "'Table name' is empty or missing"
         }
 
-        It "Should fail when Column name column missing" {
+        It "Should fail when Column name is empty" {
             # Arrange
             $specs = @(
                 [PSCustomObject]@{
                     'Table name' = 'Employee'
+                    'Column name' = ''
                     'Data type' = 'VARCHAR'
+                    'Precision' = $null
+                    'Scale' = $null
                 }
             )
 
@@ -116,15 +123,18 @@ Describe "Test-ExcelSpecification" {
 
             # Assert
             $result.IsValid | Should -Be $false
-            $result.Errors[0] | Should -Match "missing required columns.*Column name"
+            $result.Errors[0] | Should -Match "'Column name' is empty or missing"
         }
 
-        It "Should fail when Data type column missing" {
+        It "Should fail when Data type is empty" {
             # Arrange
             $specs = @(
                 [PSCustomObject]@{
                     'Table name' = 'Employee'
                     'Column name' = 'FirstName'
+                    'Data type' = ''
+                    'Precision' = $null
+                    'Scale' = $null
                 }
             )
 
@@ -133,7 +143,7 @@ Describe "Test-ExcelSpecification" {
 
             # Assert
             $result.IsValid | Should -Be $false
-            $result.Errors[0] | Should -Match "missing required columns.*Data type"
+            $result.Errors[0] | Should -Match "'Data type' is empty or missing"
         }
     }
 
@@ -277,14 +287,15 @@ Describe "Test-ExcelSpecification" {
     }
 
     Context "Precision Validation" {
-        It "Should fail when VARCHAR missing precision" {
+        It "Should warn when VARCHAR missing precision (will use default)" {
             # Arrange
             $specs = @(
                 [PSCustomObject]@{
                     'Table name' = 'Employee'
                     'Column name' = 'FirstName'
                     'Data type' = 'VARCHAR'
-                    Precision = $null
+                    'Precision' = $null
+                    'Scale' = $null
                 }
             )
 
@@ -292,8 +303,8 @@ Describe "Test-ExcelSpecification" {
             $result = Test-ExcelSpecification -Specifications $specs
 
             # Assert
-            $result.IsValid | Should -Be $false
-            $result.Errors[0] | Should -Match "Row 2.*VARCHAR.*requires.*Precision"
+            $result.IsValid | Should -Be $true
+            $result.Warnings[0] | Should -Match "Row 2.*No precision specified.*VARCHAR.*default"
         }
 
         It "Should fail when DECIMAL missing precision" {

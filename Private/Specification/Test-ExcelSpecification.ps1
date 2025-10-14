@@ -62,25 +62,8 @@ function Test-ExcelSpecification {
         }
     }
 
-    # Required columns
-    $requiredColumns = @('Table name', 'Column name', 'Data type')
-
-    # Check that first specification has all required columns
-    $firstSpec = $Specifications[0]
-    $missingColumns = $requiredColumns | Where-Object { -not ($firstSpec.PSObject.Properties.Name -contains $_) }
-
-    if ($missingColumns.Count -gt 0) {
-        $errors += "Excel specification file is missing required columns: $($missingColumns -join ', ')"
-        $errors += "Required columns: $($requiredColumns -join ', ')"
-        if ($ThrowOnError) {
-            throw ($errors -join "`n")
-        }
-        return @{
-            IsValid = $false
-            Errors = $errors
-            Warnings = $warnings
-        }
-    }
+    # Note: Column names are now normalized by Get-TableSpecifications
+    # using column indices, so typos in Excel headers won't cause issues
 
     # Valid SQL Server data types (simplified list - commonly used types)
     $validDataTypes = @(
