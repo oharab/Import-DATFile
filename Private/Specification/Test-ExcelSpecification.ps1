@@ -5,12 +5,13 @@ function Test-ExcelSpecification {
 
     .DESCRIPTION
     Performs comprehensive validation of Excel specification:
-    - Checks required columns exist
     - Validates data types are supported
     - Validates field/table names are SQL-safe
-    - Checks for duplicate field definitions
     - Validates precision/scale values
     - Provides detailed error messages with line numbers
+
+    Note: Duplicate column names are automatically handled by Get-TableSpecifications
+    (renamed with .N suffix), so this validation doesn't check for duplicates.
 
     .PARAMETER Specifications
     Array of specification objects from Excel file.
@@ -107,8 +108,9 @@ function Test-ExcelSpecification {
         }
         else {
             # Validate Column name is SQL-safe
-            if ($columnName -notmatch '^[a-zA-Z0-9_]+$') {
-                $errors += "Row $rowNum - Invalid column name '$columnName'. Column names must contain only letters, numbers, and underscores."
+            # Allow periods for auto-generated duplicate names (e.g., ColumnName.1)
+            if ($columnName -notmatch '^[a-zA-Z0-9_.]+$') {
+                $errors += "Row $rowNum - Invalid column name '$columnName'. Column names must contain only letters, numbers, underscores, and periods."
             }
 
             # Check for reserved SQL keywords (common ones)
@@ -117,14 +119,10 @@ function Test-ExcelSpecification {
                 $warnings += "Row $rowNum - Column name '$columnName' is a SQL reserved keyword. Consider using a different name or expect it to be quoted in queries."
             }
 
-            # Check for duplicates within same table
+            # Note: Duplicate column names are now auto-renamed in Get-TableSpecifications
+            # with .N suffix, so we don't need to error here. Just track for reference.
             $fieldKey = "$tableName|$columnName"
-            if ($seenFields.ContainsKey($fieldKey)) {
-                $errors += "Row $rowNum - Duplicate field definition for table '$tableName', column '$columnName'. First defined at row $($seenFields[$fieldKey])."
-            }
-            else {
-                $seenFields[$fieldKey] = $rowNum
-            }
+            $seenFields[$fieldKey] = $rowNum
         }
 
         # Validate Data type

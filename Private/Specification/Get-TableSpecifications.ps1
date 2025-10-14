@@ -19,6 +19,9 @@ function Get-TableSpecifications {
     order is important. This makes the importer resilient to header typos
     like "Precison" vs "Precision".
 
+    Duplicate column names within the same table are automatically renamed by
+    appending ".N" where N is a sequential counter (e.g., MemberName, MemberName.1, MemberName.2).
+
     .PARAMETER ExcelPath
     Path to Excel specification file.
 
@@ -60,8 +63,10 @@ function Get-TableSpecifications {
         # Expected order: TableName, ColumnName, DataType, Precision, Scale
         $standardHeaders = @('Table name', 'Column name', 'Data type', 'Precision', 'Scale')
 
-        # Build normalized specs
+        # Build normalized specs with duplicate column name handling
         $specs = @()
+        $columnNameCounters = @{}  # Track column name usage per table: "TableName|ColumnName" -> count
+
         for ($i = 1; $i -lt $rawData.Count; $i++) {
             $row = $rawData[$i]
             $values = $row.PSObject.Properties.Value
@@ -71,10 +76,29 @@ function Get-TableSpecifications {
                 continue
             }
 
+            $tableName = $values[0]
+            $columnName = $values[1]
+
+            # Handle duplicate column names by appending .N
+            $fieldKey = "$tableName|$columnName"
+            if ($columnNameCounters.ContainsKey($fieldKey)) {
+                # Duplicate found - append counter
+                $counter = $columnNameCounters[$fieldKey]
+                $originalColumnName = $columnName
+                $columnName = "$columnName.$counter"
+                $columnNameCounters[$fieldKey] = $counter + 1
+
+                Write-Warning "Row $($i + 1) - Duplicate column name '$originalColumnName' in table '$tableName'. Renamed to '$columnName'"
+            }
+            else {
+                # First occurrence
+                $columnNameCounters[$fieldKey] = 1
+            }
+
             # Create normalized object using standard property names
             $spec = [PSCustomObject]@{
-                'Table name' = $values[0]
-                'Column name' = $values[1]
+                'Table name' = $tableName
+                'Column name' = $columnName  # May have .N suffix for duplicates
                 'Data type' = $values[2]
                 'Precision' = if ($values.Count -gt 3) { $values[3] } else { $null }
                 'Scale' = if ($values.Count -gt 4) { $values[4] } else { $null }
