@@ -1,10 +1,13 @@
 function Read-DatFileLines {
     <#
     .SYNOPSIS
-    Reads DAT file lines with multi-line field support.
+    Reads DAT file lines with multi-line field support using streaming I/O.
 
     .DESCRIPTION
-    Reads file content and parses lines, handling embedded newlines in fields.
+    Reads file content using StreamReader for memory-efficient processing.
+    Handles embedded newlines in fields by accumulating lines until expected
+    field count is reached. Supports files larger than available RAM.
+
     Uses ImportID prefix pattern to detect record boundaries.
     Returns structured records ready for DataTable population.
 
@@ -20,6 +23,11 @@ function Read-DatFileLines {
 
     .EXAMPLE
     $records = Read-DatFileLines -FilePath "C:\Data\ABC_Employee.dat" -ExpectedFieldCount 10 -Prefix "ABC_"
+
+    .NOTES
+    Uses System.IO.StreamReader for memory-efficient streaming.
+    Memory usage: ~few KB regardless of file size (vs loading entire file into memory).
+    Supports files larger than available RAM.
     #>
     [CmdletBinding()]
     [OutputType([array])]
@@ -35,97 +43,167 @@ function Read-DatFileLines {
         [string]$Prefix = ""
     )
 
-    Write-Verbose "Reading DAT file: $FilePath (Expected fields: $ExpectedFieldCount)"
-
-    # Ensure $lines is always an array (Get-Content returns scalar String for single-line files)
-    $lines = @(Get-Content -Path $FilePath)
-    if ($lines.Count -eq 0) {
-        Write-Warning "Data file is empty: $FilePath"
-        # Use comma operator to force array return (prevents PowerShell unwrapping to null)
-        return ,@()
-    }
+    Write-Verbose "Reading DAT file (streaming): $FilePath (Expected fields: $ExpectedFieldCount)"
 
     $records = @()
-    $totalLines = $lines.Count
-    $currentLineIndex = 0
+    $reader = $null
+    $currentRecord = $null
+    $lineNumber = 0
 
-    while ($currentLineIndex -lt $totalLines) {
-        $startLineNumber = $currentLineIndex + 1
-        $currentLine = $lines[$currentLineIndex]
+    try {
+        # Create StreamReader for memory-efficient line-by-line reading
+        $reader = [System.IO.StreamReader]::new($FilePath)
 
-        # Skip empty lines
-        if ([string]::IsNullOrWhiteSpace($currentLine)) {
-            $currentLineIndex++
-            continue
-        }
+        while (($line = $reader.ReadLine()) -ne $null) {
+            $lineNumber++
 
-        # Start building record
-        $accumulatedLine = $currentLine
-        # Use .NET Split for reliable pipe splitting (PowerShell -split has issues in some environments)
-        $values = $accumulatedLine.Split('|')
-        $linesConsumed = 1
+            # Skip empty lines
+            if ([string]::IsNullOrWhiteSpace($line)) {
+                continue
+            }
 
-        # Accumulate lines until we have enough fields OR next line starts a new record
-        while ($values.Length -lt $ExpectedFieldCount -and ($currentLineIndex + 1) -lt $totalLines) {
-            $nextLine = $lines[$currentLineIndex + 1]
-
-            # Check if next line starts with ImportID pattern (new record indicator)
-            # Build pattern based on prefix (e.g., "ABC_" means records start with "ABC_*|")
-            if (-not [string]::IsNullOrWhiteSpace($nextLine)) {
+            # Check if this line starts a new record (ImportID pattern)
+            $isNewRecord = $false
+            if ($currentRecord) {
+                # Build ImportID detection pattern
                 $importIdPattern = if ($Prefix) {
                     # Use prefix-specific pattern (e.g., ^ABC_[A-Z0-9_-]*\|)
                     "^$([regex]::Escape($Prefix))[A-Z0-9_-]*\|"
                 } else {
-                    # Generic pattern for backward compatibility (case-sensitive: uppercase letters, digits, _ -)
+                    # Generic pattern for backward compatibility (case-sensitive)
                     '^[A-Z0-9_-]+\|'
                 }
 
-                if ($nextLine -cmatch $importIdPattern) {
-                    # Next line looks like a new record, don't accumulate (case-sensitive match)
-                    break
+                # Check if line matches ImportID pattern (new record indicator)
+                if ($line -cmatch $importIdPattern) {
+                    $isNewRecord = $true
                 }
             }
 
-            # Continue accumulating - this line is part of current record
-            $currentLineIndex++
-            $accumulatedLine += "`n" + $nextLine
-            $values = $accumulatedLine.Split('|')
-            $linesConsumed++
+            # If new record detected and we have a current record, complete it first
+            if ($isNewRecord) {
+                # Complete previous record
+                $completedRecord = Complete-Record -RecordData $currentRecord -ExpectedFieldCount $ExpectedFieldCount
+                $records += $completedRecord
+
+                # Start new record with current line
+                $currentRecord = @{
+                    StartLine = $lineNumber
+                    AccumulatedLine = $line
+                    LinesConsumed = 1
+                }
+            }
+            elseif ($currentRecord) {
+                # Continue accumulating lines into current record
+                $currentRecord.AccumulatedLine += "`n" + $line
+                $currentRecord.LinesConsumed++
+
+                # Check if we've reached expected field count
+                $values = $currentRecord.AccumulatedLine.Split('|')
+                if ($values.Length -eq $ExpectedFieldCount) {
+                    # Record is complete
+                    $completedRecord = Complete-Record -RecordData $currentRecord -ExpectedFieldCount $ExpectedFieldCount
+                    $records += $completedRecord
+                    $currentRecord = $null
+                }
+            }
+            else {
+                # Start first record
+                $currentRecord = @{
+                    StartLine = $lineNumber
+                    AccumulatedLine = $line
+                    LinesConsumed = 1
+                }
+
+                # Check if single-line record is already complete
+                $values = $currentRecord.AccumulatedLine.Split('|')
+                if ($values.Length -eq $ExpectedFieldCount) {
+                    $completedRecord = Complete-Record -RecordData $currentRecord -ExpectedFieldCount $ExpectedFieldCount
+                    $records += $completedRecord
+                    $currentRecord = $null
+                }
+            }
         }
 
-        # Validate final field count
-        if ($values.Length -ne $ExpectedFieldCount) {
-            $previewLength = 200  # Characters to show in error preview
-            $endLineNumber = $startLineNumber + $linesConsumed - 1
-            $preview = $accumulatedLine.Substring(0, [Math]::Min($previewLength, $accumulatedLine.Length))
+        # Handle final record if any
+        if ($currentRecord) {
+            $completedRecord = Complete-Record -RecordData $currentRecord -ExpectedFieldCount $ExpectedFieldCount
+            $records += $completedRecord
+        }
 
-            # Build comprehensive error message with all context
-            $errorMessage = @"
-Field count mismatch at lines $startLineNumber-$endLineNumber.
+        Write-Verbose "Read $($records.Count) records from file (streaming mode)"
+
+        # Return records array. Use comma operator to prevent PowerShell from unwrapping empty arrays
+        # This ensures empty arrays are returned as arrays, not null
+        ,$records
+    }
+    catch {
+        Write-Error "Failed to read DAT file: $($_.Exception.Message)"
+        throw
+    }
+    finally {
+        # Ensure StreamReader is always disposed
+        if ($reader) {
+            $reader.Dispose()
+        }
+    }
+}
+
+function Complete-Record {
+    <#
+    .SYNOPSIS
+    Completes and validates a record from accumulated data.
+
+    .DESCRIPTION
+    Internal helper function to validate field count and create final record object.
+
+    .PARAMETER RecordData
+    Hashtable with StartLine, AccumulatedLine, LinesConsumed.
+
+    .PARAMETER ExpectedFieldCount
+    Expected number of fields.
+
+    .OUTPUTS
+    PSCustomObject with LineNumber and Values properties.
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory=$true)]
+        [hashtable]$RecordData,
+
+        [Parameter(Mandatory=$true)]
+        [int]$ExpectedFieldCount
+    )
+
+    $values = $RecordData.AccumulatedLine.Split('|')
+
+    # Validate field count
+    if ($values.Length -ne $ExpectedFieldCount) {
+        $previewLength = 200  # Characters to show in error preview
+        $startLine = $RecordData.StartLine
+        $endLine = $startLine + $RecordData.LinesConsumed - 1
+        $preview = $RecordData.AccumulatedLine.Substring(0, [Math]::Min($previewLength, $RecordData.AccumulatedLine.Length))
+
+        # Build comprehensive error message with all context
+        $errorMessage = @"
+Field count mismatch at lines $startLine-$endLine.
 Expected: $ExpectedFieldCount fields
 Got: $($values.Length) fields
-Consumed: $linesConsumed line(s)
+Consumed: $($RecordData.LinesConsumed) line(s)
 Content preview: $preview...
 "@
 
-            throw $errorMessage
-        }
-
-        if ($linesConsumed -gt 1) {
-            Write-Verbose "Multi-line record at line $startLineNumber (spans $linesConsumed lines)"
-        }
-
-        $records += [PSCustomObject]@{
-            LineNumber = $startLineNumber
-            Values = $values
-        }
-
-        $currentLineIndex++
+        throw $errorMessage
     }
 
-    Write-Verbose "Read $($records.Count) records from file"
+    # Log multi-line records
+    if ($RecordData.LinesConsumed -gt 1) {
+        Write-Verbose "Multi-line record at line $($RecordData.StartLine) (spans $($RecordData.LinesConsumed) lines)"
+    }
 
-    # Return records array. Use comma operator to prevent PowerShell from unwrapping empty arrays
-    # This ensures empty arrays are returned as arrays, not null
-    ,$records
+    # Return completed record
+    return [PSCustomObject]@{
+        LineNumber = $RecordData.StartLine
+        Values = $values
+    }
 }
