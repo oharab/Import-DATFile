@@ -154,30 +154,63 @@ function Test-ExcelSpecification {
                 $errors += "Row $rowNum - Invalid data type '$dataType'. Supported types - $($validDataTypes -join ', ')"
             }
 
-            # Validate Precision is provided for types that require it
-            $typesRequiringPrecision = @('VARCHAR', 'NVARCHAR', 'CHAR', 'NCHAR', 'BINARY', 'VARBINARY', 'DECIMAL', 'NUMERIC')
-            if ($typesRequiringPrecision -contains $dataTypeUpper) {
-                if ($null -eq $precision -or $precision -eq '' -or $precision -le 0) {
-                    $errors += "Row $rowNum - Data type '$dataType' requires a valid 'Precision' value (must be > 0)"
+            # Validate Precision is provided for types that strictly require it
+            # Note: VARCHAR, CHAR can use defaults (VARCHAR(MAX), CHAR(10))
+            # DECIMAL/NUMERIC should have precision specified for data integrity
+            $typesStrictlyRequiringPrecision = @('DECIMAL', 'NUMERIC')
+            if ($typesStrictlyRequiringPrecision -contains $dataTypeUpper) {
+                if ($null -eq $precision -or $precision -eq '' -or $precision -eq 0) {
+                    $errors += "Row $rowNum - Data type '$dataType' requires a valid 'Precision' value (e.g., '18,2' for DECIMAL(18,2))"
                 }
-                else {
-                    # Validate precision is numeric
-                    $precisionNum = 0
-                    if (-not [int]::TryParse($precision, [ref]$precisionNum)) {
-                        $errors += "Row $rowNum - 'Precision' value '$precision' is not a valid integer"
+            }
+
+            # Validate Precision if provided (for any type that supports it)
+            $typesAcceptingPrecision = @('VARCHAR', 'NVARCHAR', 'CHAR', 'NCHAR', 'BINARY', 'VARBINARY', 'DECIMAL', 'NUMERIC')
+            if ($typesAcceptingPrecision -contains $dataTypeUpper) {
+                if ($null -ne $precision -and $precision -ne '' -and $precision -ne 0) {
+                    # Validate precision format (can be "100" or "18,2" for DECIMAL)
+                    $precisionStr = $precision.ToString().Trim()
+
+                    # For DECIMAL/NUMERIC, precision can be "18,2" format
+                    if ($dataTypeUpper -in @('DECIMAL', 'NUMERIC')) {
+                        if ($precisionStr -match '^(\d+)(,(\d+))?$') {
+                            $precValue = [int]$Matches[1]
+                            $scaleValue = if ($Matches[3]) { [int]$Matches[3] } else { 0 }
+
+                            if ($precValue -gt 38) {
+                                $errors += "Row $rowNum - 'Precision' value $precValue for $dataType exceeds max (38)"
+                            }
+                            if ($scaleValue -gt $precValue) {
+                                $errors += "Row $rowNum - 'Scale' ($scaleValue) cannot exceed 'Precision' ($precValue) for DECIMAL/NUMERIC"
+                            }
+                        }
+                        else {
+                            $errors += "Row $rowNum - 'Precision' value '$precision' is invalid for DECIMAL. Use format: '18,2' or '18'"
+                        }
                     }
                     else {
-                        # Validate precision is within reasonable bounds
-                        if ($dataTypeUpper -in @('VARCHAR', 'NVARCHAR') -and $precisionNum -gt 8000) {
-                            $warnings += "Row $rowNum - 'Precision' value $precisionNum for $dataType exceeds max (8000). Use VARCHAR(MAX) or NVARCHAR(MAX) for larger values."
+                        # For string types, validate as integer
+                        $precisionNum = 0
+                        if (-not [int]::TryParse($precisionStr, [ref]$precisionNum)) {
+                            $errors += "Row $rowNum - 'Precision' value '$precision' is not a valid integer"
                         }
-                        elseif ($dataTypeUpper -in @('CHAR', 'NCHAR') -and $precisionNum -gt 8000) {
-                            $errors += "Row $rowNum - 'Precision' value $precisionNum for $dataType exceeds max (8000)"
-                        }
-                        elseif ($dataTypeUpper -in @('DECIMAL', 'NUMERIC') -and $precisionNum -gt 38) {
-                            $errors += "Row $rowNum - 'Precision' value $precisionNum for $dataType exceeds max (38)"
+                        else {
+                            # Validate precision is within reasonable bounds
+                            if ($dataTypeUpper -in @('VARCHAR', 'NVARCHAR') -and $precisionNum -gt 8000) {
+                                $warnings += "Row $rowNum - 'Precision' value $precisionNum for $dataType exceeds max (8000). Will use VARCHAR(MAX) instead."
+                            }
+                            elseif ($dataTypeUpper -in @('CHAR', 'NCHAR') -and $precisionNum -gt 8000) {
+                                $errors += "Row $rowNum - 'Precision' value $precisionNum for $dataType exceeds max (8000)"
+                            }
                         }
                     }
+                }
+            }
+
+            # Warn if precision is empty for string types (defaults will be used)
+            if ($dataTypeUpper -in @('VARCHAR', 'NVARCHAR', 'CHAR', 'NCHAR')) {
+                if ($null -eq $precision -or $precision -eq '' -or $precision -eq 0) {
+                    $warnings += "Row $rowNum - No precision specified for $dataType. Will use default: VARCHAR/NVARCHAR=MAX, CHAR/NCHAR=10"
                 }
 
                 # Validate Scale for decimal types

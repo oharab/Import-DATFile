@@ -34,8 +34,10 @@ function Get-SqlDataTypeMapping {
     # Order matters - patterns evaluated in order, first match wins
     $sqlTypeMappings = @(
         [PSCustomObject]@{ Pattern = '^MONEY$';        SqlType = 'MONEY';    UsesPrecision = $false; DefaultPrecision = $null }
-        [PSCustomObject]@{ Pattern = '^VARCHAR.*';     SqlType = 'VARCHAR';  UsesPrecision = $true;  DefaultPrecision = '255' }
+        [PSCustomObject]@{ Pattern = '^VARCHAR.*';     SqlType = 'VARCHAR';  UsesPrecision = $true;  DefaultPrecision = 'MAX' }
+        [PSCustomObject]@{ Pattern = '^NVARCHAR.*';    SqlType = 'NVARCHAR'; UsesPrecision = $true;  DefaultPrecision = 'MAX' }
         [PSCustomObject]@{ Pattern = '^CHAR.*';        SqlType = 'CHAR';     UsesPrecision = $true;  DefaultPrecision = '10' }
+        [PSCustomObject]@{ Pattern = '^NCHAR.*';       SqlType = 'NCHAR';    UsesPrecision = $true;  DefaultPrecision = '10' }
         [PSCustomObject]@{ Pattern = '^INT.*|^INTEGER$'; SqlType = 'INT';    UsesPrecision = $false; DefaultPrecision = $null }
         [PSCustomObject]@{ Pattern = '^BIGINT$';       SqlType = 'BIGINT';   UsesPrecision = $false; DefaultPrecision = $null }
         [PSCustomObject]@{ Pattern = '^SMALLINT$';     SqlType = 'SMALLINT'; UsesPrecision = $false; DefaultPrecision = $null }
